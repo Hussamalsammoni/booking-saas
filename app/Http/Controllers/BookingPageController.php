@@ -59,13 +59,22 @@ class BookingPageController extends Controller
     return response()->json($slots);
 }
 
-    public function index()
-    {
-        return Inertia::render('Booking/Show', [
-            'services' => Service::where('is_active', true)->get(),
-            'staff'    => Staff::with('user', 'services')->where('is_active', true)->get(),
-        ]);
-    }
+  public function index()
+{
+    $t = tenant();
+
+    return Inertia::render('Booking/Show', [
+        'services' => Service::where('is_active', true)->get(),
+        'staff'    => Staff::with('user', 'services')->where('is_active', true)->get(),
+        'shop'     => [
+            'name'        => $t->shop_name,
+            'description' => $t->description,
+            'color'       => $t->primary_color ?? '#4f46e5',
+            'logo'        => $t->logo_path ? tenant_asset($t->logo_path) : null,
+            'cover'       => $t->cover_path ? tenant_asset($t->cover_path) : null,
+        ],
+    ]);
+}
 
     public function store(Request $request)
     {

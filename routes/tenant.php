@@ -29,7 +29,9 @@ Route::middleware(array_merge($tenancyMiddleware, ['auth']))
     ->resource('services', \App\Http\Controllers\ServiceController::class);
 Route::middleware(array_merge($tenancyMiddleware, ['auth']))
     ->resource('staff', \App\Http\Controllers\StaffController::class);
-Route::middleware($tenancyMiddleware)->get('/book', [\App\Http\Controllers\BookingPageController::class, 'index'])->name('booking.index');
+Route::middleware(array_merge($tenancyMiddleware, ['auth']))->get('/settings/shop', [\App\Http\Controllers\ShopSettingsController::class, 'edit'])->name('shop-settings.edit');
+Route::middleware(array_merge($tenancyMiddleware, ['auth']))->post('/settings/shop', [\App\Http\Controllers\ShopSettingsController::class, 'update'])->name('shop-settings.update');
+    Route::middleware($tenancyMiddleware)->get('/book', [\App\Http\Controllers\BookingPageController::class, 'index'])->name('booking.index');
 Route::middleware($tenancyMiddleware)->post('/book', [\App\Http\Controllers\BookingPageController::class, 'store'])->name('booking.store');
 Route::middleware($tenancyMiddleware)
     ->get('/booking/success/{booking}', [\App\Http\Controllers\BookingPageController::class, 'success'])

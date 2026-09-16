@@ -37,7 +37,7 @@ class ServiceApiController extends Controller
     public function update(Request $request, Service $service)
     {
         $validated = $request->validate([
-            'name' => 'someٍtimes|required|string|max:255',
+            'name' => 'sometimes|required|string|max:255',
             'price' => 'sometimes|required|numeric|min:0',
             'duration_minutes' => 'sometimes|required|integer|min:1',
             'description' => 'sometimes|nullable|string',       

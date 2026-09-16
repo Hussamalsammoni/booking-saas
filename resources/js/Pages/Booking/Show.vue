@@ -7,7 +7,10 @@ import axios from 'axios';
 const props = defineProps({
     services: Array,
     staff: Array,
+    shop: Object,
 });
+
+const primaryColor = computed(() => props.shop?.color || '#4f46e5');
 
 const step = ref(1);
 
@@ -139,10 +142,28 @@ const goBack = () => {
 </script>
 
 <template>
-    <Head title="احجز موعدك" />
+    <Head :title="shop?.name ? `احجز موعدك - ${shop.name}` : 'احجز موعدك'" />
 
     <div class="min-h-screen bg-gradient-to-b from-indigo-50 to-white py-10 px-4">
         <div class="max-w-xl mx-auto">
+
+            <!-- هيدر المحل: غلاف + شعار + اسم + وصف -->
+            <div v-if="shop" class="mb-8 rounded-xl overflow-hidden shadow-sm bg-white">
+                <div
+                    class="h-32 bg-gray-100 bg-cover bg-center"
+                    :style="shop.cover ? { backgroundImage: `url(${shop.cover})` } : {}"
+                ></div>
+                <div class="px-5 pb-5 -mt-8 flex items-end gap-3">
+                    <div class="w-16 h-16 rounded-xl bg-white shadow-md border-4 border-white overflow-hidden shrink-0">
+                        <img v-if="shop.logo" :src="shop.logo" class="w-full h-full object-cover" />
+                        <div v-else class="w-full h-full flex items-center justify-center text-gray-300 text-2xl">🏬</div>
+                    </div>
+                    <div class="pb-1">
+                        <h1 class="text-lg font-bold text-gray-800">{{ shop.name }}</h1>
+                        <p v-if="shop.description" class="text-sm text-gray-500 mt-0.5">{{ shop.description }}</p>
+                    </div>
+                </div>
+            </div>
 
             <h1 class="text-3xl font-bold text-gray-800 mb-2 text-center">احجز موعدك</h1>
             <p class="text-gray-500 text-center mb-8">اختر ما يناسبك في خطوات بسيطة</p>
@@ -155,7 +176,8 @@ const goBack = () => {
                 <div
                     v-for="n in 4"
                     :key="n"
-                    :class="n <= step ? 'bg-indigo-600' : 'bg-gray-200'"
+                    :style="n <= step ? { backgroundColor: primaryColor } : {}"
+                    :class="n <= step ? '' : 'bg-gray-200'"
                     class="h-1.5 w-10 rounded-full transition-colors"
                 ></div>
             </div>
@@ -217,7 +239,8 @@ const goBack = () => {
                             v-for="day in upcomingDays"
                             :key="day.value"
                             @click="chooseDate(day.value)"
-                            :class="selectedDate === day.value ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                            :style="selectedDate === day.value ? { backgroundColor: primaryColor, color: '#fff' } : {}"
+                            :class="selectedDate === day.value ? '' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
                             class="shrink-0 px-4 py-2 rounded-lg text-sm whitespace-nowrap transition"
                         >
                             {{ day.label }}
@@ -273,7 +296,8 @@ const goBack = () => {
                         <button
                             type="submit"
                             :disabled="form.processing"
-                            class="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
+                            :style="{ backgroundColor: primaryColor }"
+                            class="w-full text-white py-3 rounded-lg font-medium hover:opacity-90 disabled:opacity-50 transition flex items-center justify-center gap-2"
                         >
                             <!-- مؤشر التحميل (Spinner) أثناء معالجة الطلب -->
                             <svg 

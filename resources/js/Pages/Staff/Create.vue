@@ -33,6 +33,7 @@ const form = useForm({
     email: '',
     password: '',
     title: '',
+    can_view_all_bookings: false,
     working_hours: defaultHours,
     service_ids: [],
 });
@@ -102,22 +103,40 @@ const submit = () => {
                                 placeholder="مثال: حلاق، أخصائي تجميل"
                             />
                         </div>
-                        <!-- الخدمات -->
-<div class="border-t border-gray-200 pt-4 mt-4">
-    <h3 class="font-medium text-gray-800 mb-3">الخدمات التي يقدمها</h3>
-    <div class="space-y-2">
-        <label v-for="service in services" :key="service.id" class="flex items-center gap-2">
-            <input
-                type="checkbox"
-                :value="service.id"
-                v-model="form.service_ids"
-                class="rounded border-gray-300 text-indigo-600 shadow-sm"
-            />
-            <span class="text-sm text-gray-700">{{ service.name }}</span>
-        </label>
-    </div>
-</div>
 
+                        <!-- خيار صلاحية مشاهدة كافة الحجوزات -->
+                        <div class="flex items-center border-t border-gray-100 pt-3">
+                            <input
+                                id="can_view_all_bookings"
+                                type="checkbox"
+                                v-model="form.can_view_all_bookings"
+                                class="rounded border-gray-300 text-indigo-600 shadow-sm"
+                            />
+                            <div class="ms-2">
+                                <label for="can_view_all_bookings" class="text-sm font-medium text-gray-700 block">
+                                    السماح برؤية كافة الحجوزات
+                                </label>
+                                <span class="text-xs text-gray-500">
+                                    تسمح للموظف بالاطلاع على الجدول العام لكل الموظفين عبر الـ API والتطبيق.
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- الخدمات -->
+                        <div class="border-t border-gray-200 pt-4 mt-4">
+                            <h3 class="font-medium text-gray-800 mb-3">الخدمات التي يقدمها</h3>
+                            <div class="space-y-2">
+                                <label v-for="service in services" :key="service.id" class="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        :value="service.id"
+                                        v-model="form.service_ids"
+                                        class="rounded border-gray-300 text-indigo-600 shadow-sm"
+                                    />
+                                    <span class="text-sm text-gray-700">{{ service.name }}</span>
+                                </label>
+                            </div>
+                        </div>
 
                         <!-- ساعات الدوام -->
                         <div class="border-t border-gray-200 pt-4 mt-4">
