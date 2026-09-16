@@ -67,11 +67,14 @@ class BookingPageController extends Controller
         'services' => Service::where('is_active', true)->get(),
         'staff'    => Staff::with('user', 'services')->where('is_active', true)->get(),
         'shop'     => [
-            'name'        => $t->shop_name,
-            'description' => $t->description,
-            'color'       => $t->primary_color ?? '#4f46e5',
-            'logo'        => $t->logo_path ? tenant_asset($t->logo_path) : null,
-            'cover'       => $t->cover_path ? tenant_asset($t->cover_path) : null,
+            'name'            => $t->shop_name,
+            'description'     => $t->description,
+            'primary_color'   => $t->primary_color ?? '#ff0569',
+            'secondary_color' => $t->secondary_color ?? '#1E1E24',
+            'bg_color'        => $t->bg_color ?? '#F9F8F6',
+            'text_color'      => $t->text_color ?? '#2D2D2D',
+            'logo'            => $t->logo_path ? tenant_asset($t->logo_path) : null,
+            'cover'           => $t->cover_path ? tenant_asset($t->cover_path) : null,
         ],
     ]);
 }

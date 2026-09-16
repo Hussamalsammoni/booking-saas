@@ -22,38 +22,44 @@ class ShopSettingsController extends Controller
         ]);
     }
 
-    public function update(Request $request)
-    {
-        $request->validate([
-            'shop_name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:500',
-            'primary_color' => 'required|string|max:7',
-            'logo' => 'nullable|image|max:2048',
-            'cover' => 'nullable|image|max:4096',
-        ]);
+  public function update(Request $request)
+{
+    $request->validate([
+        'shop_name'       => 'required|string|max:255',
+        'description'     => 'nullable|string|max:500',
+        'primary_color'   => 'required|string|max:7',
+        'secondary_color' => 'nullable|string|max:7',
+        'bg_color'        => 'nullable|string|max:7',
+        'text_color'      => 'nullable|string|max:7',
+        'logo'            => 'nullable|image|max:2048',
+        'cover'           => 'nullable|image|max:4096',
+    ]);
 
-        $t = tenant();
-        $t->shop_name = $request->shop_name;
-        $t->description = $request->description;
-        $t->primary_color = $request->primary_color;
+    $t = tenant();
+    $t->shop_name       = $request->shop_name;
+    $t->description     = $request->description;
+    $t->primary_color   = $request->primary_color;
+    $t->secondary_color = $request->secondary_color;
+    $t->bg_color        = $request->bg_color;
+    $t->text_color      = $request->text_color;
 
-        if ($request->hasFile('logo')) {
-            $t->logo_path = $request->file('logo')->storeAs(
-                "shop-branding/{$t->id}",
-                'logo_' . time() . '.' . $request->file('logo')->extension(),
-                'public'
-            );
-        }
-        if ($request->hasFile('cover')) {
-            $t->cover_path = $request->file('cover')->storeAs(
-                "shop-branding/{$t->id}",
-                'cover_' . time() . '.' . $request->file('cover')->extension(),
-                'public'
-            );
-        }
-
-        $t->save();
-
-        return back()->with('success', 'تم تحديث إعدادات المحل بنجاح');
+    if ($request->hasFile('logo')) {
+        $t->logo_path = $request->file('logo')->storeAs(
+            "shop-branding/{$t->id}",
+            'logo_' . time() . '.' . $request->file('logo')->extension(),
+            'public'
+        );
     }
+    if ($request->hasFile('cover')) {
+        $t->cover_path = $request->file('cover')->storeAs(
+            "shop-branding/{$t->id}",
+            'cover_' . time() . '.' . $request->file('cover')->extension(),
+            'public'
+        );
+    }
+
+    $t->save();
+
+    return back()->with('success', 'تم تحديث إعدادات المحل بنجاح');
+}
 }
