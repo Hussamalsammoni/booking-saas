@@ -20,9 +20,13 @@ Route::middleware([
         ]);
     });
 
-    Route::middleware('guest')->group(function () {
+    // 'central': التسجيل بس على الدومين الرئيسي (مو من دومين أي محل)
+    Route::middleware(['central', 'guest'])->group(function () {
         Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
-        Route::post('/register', [RegisteredUserController::class, 'store']);
+
+        // كل تسجيل بيعمل قاعدة بيانات جديدة، فنحدّ العدد: 5 محاولات بالساعة للـ IP الواحد
+        Route::post('/register', [RegisteredUserController::class, 'store'])
+            ->middleware('throttle:5,60');
     });
 
 });

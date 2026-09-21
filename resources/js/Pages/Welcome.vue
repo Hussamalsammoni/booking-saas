@@ -1,313 +1,631 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head } from '@inertiajs/vue3'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import {
+    Crown,
+    MessageCircle,
+    FileText,
+    BarChart3,
+    Users,
+    Timer,
+    Database,
+    Scissors,
+    Sparkles,
+    Smartphone,
+    Check,
+    X,
+} from 'lucide-vue-next'
 
 defineProps({
-    canLogin: {
-        type: Boolean,
+    canLogin: { type: Boolean, default: true },
+    canRegister: { type: Boolean, default: true },
+    laravelVersion: String,
+    phpVersion: String,
+})
+
+/* ───────── لوحة اليوم (الحركة الوحيدة في الصفحة) ───────── */
+const hours = ['10 ص', '11 ص', '12 م', '1 م', '2 م', '3 م', '4 م', '5 م']
+
+const rowsSeed = [
+    {
+        name: 'أحمد', role: 'حلاق', icon: Scissors,
+        blocks: [
+            { col: 1, span: 1, name: 'خالد', svc: 'حلاقة', status: 'confirmed' },
+            { col: 3, span: 2, name: 'رامي', svc: 'حلاقة وذقن', status: 'confirmed' },
+            { col: 6, span: 1, name: 'يوسف', svc: 'حلاقة', status: 'pending' },
+        ],
     },
-    canRegister: {
-        type: Boolean,
+    {
+        name: 'سارة', role: 'خبيرة تجميل', icon: Sparkles,
+        blocks: [
+            { col: 2, span: 2, name: 'ريم', svc: 'صبغة', status: 'confirmed' },
+            { col: 5, span: 3, name: 'لينا', svc: 'تسريحة عروس', status: 'pending' },
+            { col: 1, span: 1, name: 'نور', svc: 'عناية', status: 'new', isNew: true },
+        ],
     },
-    laravelVersion: {
-        type: String,
-        required: true,
+    {
+        name: 'ماهر', role: 'فني صيانة', icon: Smartphone,
+        blocks: [
+            { col: 1, span: 2, name: 'عمر', svc: 'تغيير شاشة', status: 'confirmed' },
+            { col: 4, span: 1, name: 'هيثم', svc: 'بطارية', status: 'pending' },
+            { col: 6, span: 2, name: 'سامر', svc: 'فورمات', status: 'confirmed' },
+        ],
     },
-    phpVersion: {
-        type: String,
-        required: true,
-    },
-});
+]
+
+// ترتيب ظهور الحجوزات: اليوم يمتلئ من الصباح للمساء، والحجز الجديد يصل أخيراً
+const all = rowsSeed.flatMap((r, ri) => r.blocks.map((b) => ({ b, ri })))
+all.filter((x) => !x.b.isNew)
+    .sort((a, b) => a.b.col - b.b.col || a.ri - b.ri)
+    .forEach((x, i) => { x.b.order = i })
+const total = all.length
+all.find((x) => x.b.isNew).b.order = total - 1
+const rows = rowsSeed
+
+const shown = ref(0)
+const shownCount = computed(() => shown.value)
+const pendingCount = computed(
+    () => all.filter((x) => x.b.order < shown.value && x.b.status !== 'confirmed').length
+)
+const toastIn = computed(() => shown.value >= total)
+
+let startTimer = null
+let tickTimer = null
+
+onMounted(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduce) {
+        shown.value = total
+        return
+    }
+    startTimer = setTimeout(() => {
+        tickTimer = setInterval(() => {
+            if (shown.value >= total) {
+                clearInterval(tickTimer)
+                return
+            }
+            shown.value += 1
+        }, 450)
+    }, 600)
+    window.addEventListener('keydown', onKey)
+})
+
+onBeforeUnmount(() => {
+    clearTimeout(startTimer)
+    clearInterval(tickTimer)
+    window.removeEventListener('keydown', onKey)
+})
+
+/* ───────── صفحة الحجز التجريبية (الهاتف) ───────── */
+const times = [
+    { t: '10:00' }, { t: '10:30', taken: true }, { t: '11:00' },
+    { t: '11:30', taken: true }, { t: '12:00' }, { t: '12:30' },
+    { t: '1:00', taken: true }, { t: '1:30' }, { t: '2:00' },
+]
+const picked = ref('11:00')
+const booked = ref(false)
+function pick(t) {
+    picked.value = t
+    booked.value = false
+}
+
+/* ───────── تسجيل الدخول: كل محل له عنوانه الخاص ───────── */
+const loginOpen = ref(false)
+const shop = ref('')
+const shopError = ref('')
+const shopInput = ref(null)
+
+function openLogin() {
+    loginOpen.value = true
+    shopError.value = ''
+    nextTick(() => shopInput.value?.focus())
+}
+function closeLogin() {
+    loginOpen.value = false
+}
+function onKey(e) {
+    if (e.key === 'Escape') closeLogin()
+}
+function goToShop() {
+    const slug = shop.value
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .split('.')[0]
+        .replace(/[^a-z0-9-]/g, '')
+    if (!slug) {
+        shopError.value = 'اكتب معرّف محلك بالأحرف الإنكليزية، مثل: royal-look'
+        return
+    }
+    window.location.href = `${window.location.protocol}//${slug}.${window.location.host}/login`
+}
+
+/* ───────── المحتوى ───────── */
+const features = [
+    { icon: Timer, title: 'لا مواعيد متداخلة', text: 'النظام يمنع حجز الموظف في وقتين معاً، ويترك فاصل 5 دقائق بين موعد وآخر ليرتاح ويجهّز.' },
+    { icon: MessageCircle, title: 'تأكيد وتذكير على واتساب', text: 'يصل الزبون رسالة عند تأكيد الحجز أو إلغائه، وتذكير قبل موعده.' },
+    { icon: FileText, title: 'فواتير عربية جاهزة', text: 'تُنشأ الفاتورة برقم متسلسل عند إنهاء الموعد وتنزّل PDF. سجّل الدفع نقداً أو عبر شام كاش برقم العملية.' },
+    { icon: BarChart3, title: 'تقارير تُفهم بنظرة', text: 'الإيراد عبر الزمن، أكثر الخدمات طلباً، وأداء كل موظف، مع فلتر بالتاريخ.' },
+    { icon: Users, title: 'صلاحيات لكل موظف', text: 'الموظف يرى مواعيده فقط، وصاحب المحل يرى كل شيء ويتحكم بمن يشاهد حجوزات الآخرين.' },
+    { icon: Database, title: 'بيانات محلك لك وحدك', text: 'لكل محل قاعدة بيانات مستقلة وعنوان خاص به، فلا تختلط بياناتك بأحد.' },
+]
+
+const steps = [
+    { title: 'سجّل محلك', text: 'اكتب اسم المحل وأنشئ حسابك، فيتجهّز لك نظامك الخاص مع رابط حجز باسمك.' },
+    { title: 'أضف خدماتك وموظفيك', text: 'حدّد الخدمات ومدتها وأسعارها، وساعات دوام كل موظف.' },
+    { title: 'شارك رابط الحجز', text: 'انسخه من لوحة التحكم وضعه في واتساب وإنستغرام، وزبونك يحجز بالاسم ورقم الهاتف فقط.' },
+]
 </script>
 
 <template>
-    <Head title="Welcome" />
+    <Head title="وقتي | نظام حجوزات لمحلك">
+        <meta name="description" content="نظام حجوزات لصالونات التجميل والحلاقة ومراكز الصيانة: رابط حجز خاص بمحلك، تذكير واتساب، فواتير وتقارير." />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Lalezar&display=swap"
+            rel="stylesheet"
+        />
+    </Head>
 
-    <div
-        class="relative sm:flex sm:justify-center sm:items-center min-h-screen bg-dots-darker bg-center bg-gray-100 dark:bg-dots-lighter dark:bg-gray-900 selection:bg-red-500 selection:text-white"
-    >
-        <div v-if="canLogin" class="sm:fixed sm:top-0 sm:right-0 p-6 text-end">
-            <Link
-                v-if="$page.props.auth.user"
-                :href="route('dashboard')"
-                class="font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                >Dashboard</Link
-            >
-
-            <template v-else>
-                <Link
-                    :href="route('login')"
-                    class="font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                    >Log in</Link
-                >
-
-                <Link
-                    v-if="canRegister"
-                    :href="route('register')"
-                    class="ms-4 font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                    >Register</Link
-                >
-            </template>
-        </div>
-
-        <div class="max-w-7xl mx-auto p-6 lg:p-8">
-            <div class="flex justify-center">
-                <svg
-                    viewBox="0 0 62 65"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-16 w-auto bg-gray-100 dark:bg-gray-900"
-                >
-                    <path
-                        d="M61.8548 14.6253C61.8778 14.7102 61.8895 14.7978 61.8897 14.8858V28.5615C61.8898 28.737 61.8434 28.9095 61.7554 29.0614C61.6675 29.2132 61.5409 29.3392 61.3887 29.4265L49.9104 36.0351V49.1337C49.9104 49.4902 49.7209 49.8192 49.4118 49.9987L25.4519 63.7916C25.3971 63.8227 25.3372 63.8427 25.2774 63.8639C25.255 63.8714 25.2338 63.8851 25.2101 63.8913C25.0426 63.9354 24.8666 63.9354 24.6991 63.8913C24.6716 63.8838 24.6467 63.8689 24.6205 63.8589C24.5657 63.8389 24.5084 63.8215 24.456 63.7916L0.501061 49.9987C0.348882 49.9113 0.222437 49.7853 0.134469 49.6334C0.0465019 49.4816 0.000120578 49.3092 0 49.1337L0 8.10652C0 8.01678 0.0124642 7.92953 0.0348998 7.84477C0.0423783 7.8161 0.0598282 7.78993 0.0697995 7.76126C0.0884958 7.70891 0.105946 7.65531 0.133367 7.6067C0.152063 7.5743 0.179485 7.54812 0.20192 7.51821C0.230588 7.47832 0.256763 7.43719 0.290416 7.40229C0.319084 7.37362 0.356476 7.35243 0.388883 7.32751C0.425029 7.29759 0.457436 7.26518 0.498568 7.2415L12.4779 0.345059C12.6296 0.257786 12.8015 0.211853 12.9765 0.211853C13.1515 0.211853 13.3234 0.257786 13.475 0.345059L25.4531 7.2415H25.4556C25.4955 7.26643 25.5292 7.29759 25.5653 7.32626C25.5977 7.35119 25.6339 7.37362 25.6625 7.40104C25.6974 7.43719 25.7224 7.47832 25.7523 7.51821C25.7735 7.54812 25.8021 7.5743 25.8196 7.6067C25.8483 7.65656 25.8645 7.70891 25.8844 7.76126C25.8944 7.78993 25.9118 7.8161 25.9193 7.84602C25.9423 7.93096 25.954 8.01853 25.9542 8.10652V33.7317L35.9355 27.9844V14.8846C35.9355 14.7973 35.948 14.7088 35.9704 14.6253C35.9792 14.5954 35.9954 14.5692 36.0053 14.5405C36.0253 14.4882 36.0427 14.4346 36.0702 14.386C36.0888 14.3536 36.1163 14.3274 36.1375 14.2975C36.1674 14.2576 36.1923 14.2165 36.2272 14.1816C36.2559 14.1529 36.292 14.1317 36.3244 14.1068C36.3618 14.0769 36.3942 14.0445 36.4341 14.0208L48.4147 7.12434C48.5663 7.03694 48.7383 6.99094 48.9133 6.99094C49.0883 6.99094 49.2602 7.03694 49.4118 7.12434L61.3899 14.0208C61.4323 14.0457 61.4647 14.0769 61.5021 14.1055C61.5333 14.1305 61.5694 14.1529 61.5981 14.1803C61.633 14.2165 61.6579 14.2576 61.6878 14.2975C61.7103 14.3274 61.7377 14.3536 61.7551 14.386C61.7838 14.4346 61.8 14.4882 61.8199 14.5405C61.8312 14.5692 61.8474 14.5954 61.8548 14.6253ZM59.893 27.9844V16.6121L55.7013 19.0252L49.9104 22.3593V33.7317L59.8942 27.9844H59.893ZM47.9149 48.5566V37.1768L42.2187 40.4299L25.953 49.7133V61.2003L47.9149 48.5566ZM1.99677 9.83281V48.5566L23.9562 61.199V49.7145L12.4841 43.2219L12.4804 43.2194L12.4754 43.2169C12.4368 43.1945 12.4044 43.1621 12.3682 43.1347C12.3371 43.1097 12.3009 43.0898 12.2735 43.0624L12.271 43.0586C12.2386 43.0275 12.2162 42.9888 12.1887 42.9539C12.1638 42.9203 12.1339 42.8916 12.114 42.8567L12.1127 42.853C12.0903 42.8156 12.0766 42.7707 12.0604 42.7283C12.0442 42.6909 12.023 42.656 12.013 42.6161C12.0005 42.5688 11.998 42.5177 11.9931 42.4691C11.9881 42.4317 11.9781 42.3943 11.9781 42.3569V15.5801L6.18848 12.2446L1.99677 9.83281ZM12.9777 2.36177L2.99764 8.10652L12.9752 13.8513L22.9541 8.10527L12.9752 2.36177H12.9777ZM18.1678 38.2138L23.9574 34.8809V9.83281L19.7657 12.2459L13.9749 15.5801V40.6281L18.1678 38.2138ZM48.9133 9.14105L38.9344 14.8858L48.9133 20.6305L58.8909 14.8846L48.9133 9.14105ZM47.9149 22.3593L42.124 19.0252L37.9323 16.6121V27.9844L43.7219 31.3174L47.9149 33.7317V22.3593ZM24.9533 47.987L39.59 39.631L46.9065 35.4555L36.9352 29.7145L25.4544 36.3242L14.9907 42.3482L24.9533 47.987Z"
-                        fill="#FF2D20"
-                    />
-                </svg>
+    <div class="w-page" dir="rtl">
+        <!-- الشريط العلوي -->
+        <header class="w-nav">
+            <div class="w-wrap w-nav-in">
+                <a href="/" class="w-brand" aria-label="وقتي">
+                    <span class="w-logo"><Crown :size="20" /></span>
+                    <span class="w-brand-ar">وقتي</span>
+                    <span class="w-brand-en">Wa9ti</span>
+                </a>
+                <nav class="w-links" aria-label="أقسام الصفحة">
+                    <a href="#features">المزايا</a>
+                    <a href="#how">كيف يبدأ محلك</a>
+                </nav>
+                <div class="w-nav-cta">
+                    <button v-if="canLogin" type="button" class="w-btn w-btn-ghost" @click="openLogin">تسجيل الدخول</button>
+                    <a v-if="canRegister" href="/register" class="w-btn w-btn-solid">إنشاء حساب</a>
+                </div>
             </div>
+        </header>
 
-            <div class="mt-16">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-                    <a
-                        href="https://laravel.com/docs"
-                        class="scale-100 p-6 bg-white dark:bg-gray-800/50 dark:bg-gradient-to-bl from-gray-700/50 via-transparent dark:ring-1 dark:ring-inset dark:ring-white/5 rounded-lg shadow-2xl shadow-gray-500/20 dark:shadow-none flex motion-safe:hover:scale-[1.01] transition-all duration-250 focus:outline focus:outline-2 focus:outline-red-500"
-                    >
-                        <div>
-                            <div
-                                class="h-16 w-16 bg-red-50 dark:bg-red-800/20 flex items-center justify-center rounded-full"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke-width="1.5"
-                                    class="w-7 h-7 stroke-red-500"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
-                                    />
-                                </svg>
+        <main>
+            <!-- الواجهة الرئيسية -->
+            <section class="w-hero">
+                <div class="w-wrap w-hero-grid">
+                    <div class="w-hero-copy">
+                        <h1 class="w-h1">مواعيد محلك<br />تتحجز وحدها</h1>
+                        <p class="w-lead">
+                            نظام حجوزات لصالونات التجميل ومحلات الحلاقة ومراكز صيانة الموبايل.
+                            زبونك يحجز من رابط خاص بمحلك، وأنت تتابع الموظفين والفواتير والتقارير من لوحة واحدة.
+                        </p>
+                        <div class="w-hero-cta">
+                            <a v-if="canRegister" href="/register" class="w-btn w-btn-solid w-btn-lg">أنشئ حساب محلك</a>
+                            <button v-if="canLogin" type="button" class="w-btn w-btn-ghost w-btn-lg" @click="openLogin">لدي حساب</button>
+                        </div>
+                        <p class="w-note">يتجهّز نظامك ورابط حجز محلك فور التسجيل.</p>
+                    </div>
+
+                    <div class="w-board" role="img" aria-label="مثال توضيحي: لوحة حجوزات اليوم تمتلئ بالمواعيد لثلاثة موظفين">
+                        <div class="w-board-top">
+                            <div>
+                                <div class="w-board-title">حجوزات اليوم</div>
+                                <div class="w-board-sub">مثال توضيحي</div>
                             </div>
-
-                            <h2 class="mt-6 text-xl font-semibold text-gray-900 dark:text-white">Documentation</h2>
-
-                            <p class="mt-4 text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
-                                Laravel has wonderful documentation covering every aspect of the framework. Whether you
-                                are a newcomer or have prior experience with Laravel, we recommend reading our
-                                documentation from beginning to end.
-                            </p>
+                            <div class="w-board-stats">
+                                <div><b>{{ shownCount }}</b><span>حجز</span></div>
+                                <div><b>{{ pendingCount }}</b><span>بانتظار التأكيد</span></div>
+                            </div>
                         </div>
 
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke-width="1.5"
-                            class="self-center shrink-0 stroke-red-500 w-6 h-6 mx-6"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75"
-                            />
-                        </svg>
-                    </a>
+                        <div class="w-board-scroll">
+                            <div class="w-board-inner">
+                                <div class="w-row w-row-hours">
+                                    <div class="w-lane-label"></div>
+                                    <div class="w-hours">
+                                        <span v-for="h in hours" :key="h">{{ h }}</span>
+                                    </div>
+                                </div>
 
-                    <a
-                        href="https://laracasts.com"
-                        class="scale-100 p-6 bg-white dark:bg-gray-800/50 dark:bg-gradient-to-bl from-gray-700/50 via-transparent dark:ring-1 dark:ring-inset dark:ring-white/5 rounded-lg shadow-2xl shadow-gray-500/20 dark:shadow-none flex motion-safe:hover:scale-[1.01] transition-all duration-250 focus:outline focus:outline-2 focus:outline-red-500"
-                    >
-                        <div>
-                            <div
-                                class="h-16 w-16 bg-red-50 dark:bg-red-800/20 flex items-center justify-center rounded-full"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke-width="1.5"
-                                    class="w-7 h-7 stroke-red-500"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
-                                    />
-                                </svg>
+                                <div v-for="row in rows" :key="row.name" class="w-row">
+                                    <div class="w-lane-label">
+                                        <component :is="row.icon" :size="16" />
+                                        <span><b>{{ row.name }}</b><small>{{ row.role }}</small></span>
+                                    </div>
+                                    <div class="w-lane">
+                                        <div
+                                            v-for="b in row.blocks"
+                                            :key="b.name"
+                                            class="w-block"
+                                            :class="[b.status, { in: b.order < shown }]"
+                                            :style="{ gridColumn: `${b.col} / span ${b.span}` }"
+                                        >
+                                            <b>{{ b.name }}</b>
+                                            <small>{{ b.svc }}</small>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-
-                            <h2 class="mt-6 text-xl font-semibold text-gray-900 dark:text-white">Laracasts</h2>
-
-                            <p class="mt-4 text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
-                                Laracasts offers thousands of video tutorials on Laravel, PHP, and JavaScript
-                                development. Check them out, see for yourself, and massively level up your development
-                                skills in the process.
-                            </p>
                         </div>
 
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke-width="1.5"
-                            class="self-center shrink-0 stroke-red-500 w-6 h-6 mx-6"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75"
-                            />
-                        </svg>
-                    </a>
-
-                    <a
-                        href="https://laravel-news.com"
-                        class="scale-100 p-6 bg-white dark:bg-gray-800/50 dark:bg-gradient-to-bl from-gray-700/50 via-transparent dark:ring-1 dark:ring-inset dark:ring-white/5 rounded-lg shadow-2xl shadow-gray-500/20 dark:shadow-none flex motion-safe:hover:scale-[1.01] transition-all duration-250 focus:outline focus:outline-2 focus:outline-red-500"
-                    >
-                        <div>
-                            <div
-                                class="h-16 w-16 bg-red-50 dark:bg-red-800/20 flex items-center justify-center rounded-full"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke-width="1.5"
-                                    class="w-7 h-7 stroke-red-500"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6v-3z"
-                                    />
-                                </svg>
-                            </div>
-
-                            <h2 class="mt-6 text-xl font-semibold text-gray-900 dark:text-white">Laravel News</h2>
-
-                            <p class="mt-4 text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
-                                Laravel News is a community driven portal and newsletter aggregating all of the latest
-                                and most important news in the Laravel ecosystem, including new package releases and
-                                tutorials.
-                            </p>
+                        <div class="w-legend">
+                            <span><i class="dot confirmed"></i>مؤكد</span>
+                            <span><i class="dot pending"></i>بانتظار التأكيد</span>
+                            <span><i class="dot new"></i>جديد من رابط الحجز</span>
                         </div>
 
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke-width="1.5"
-                            class="self-center shrink-0 stroke-red-500 w-6 h-6 mx-6"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75"
-                            />
-                        </svg>
-                    </a>
-
-                    <div
-                        class="scale-100 p-6 bg-white dark:bg-gray-800/50 dark:bg-gradient-to-bl from-gray-700/50 via-transparent dark:ring-1 dark:ring-inset dark:ring-white/5 rounded-lg shadow-2xl shadow-gray-500/20 dark:shadow-none flex motion-safe:hover:scale-[1.01] transition-all duration-250 focus:outline focus:outline-2 focus:outline-red-500"
-                    >
-                        <div>
-                            <div
-                                class="h-16 w-16 bg-red-50 dark:bg-red-800/20 flex items-center justify-center rounded-full"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke-width="1.5"
-                                    class="w-7 h-7 stroke-red-500"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M6.115 5.19l.319 1.913A6 6 0 008.11 10.36L9.75 12l-.387.775c-.217.433-.132.956.21 1.298l1.348 1.348c.21.21.329.497.329.795v1.089c0 .426.24.815.622 1.006l.153.076c.433.217.956.132 1.298-.21l.723-.723a8.7 8.7 0 002.288-4.042 1.087 1.087 0 00-.358-1.099l-1.33-1.108c-.251-.21-.582-.299-.905-.245l-1.17.195a1.125 1.125 0 01-.98-.314l-.295-.295a1.125 1.125 0 010-1.591l.13-.132a1.125 1.125 0 011.3-.21l.603.302a.809.809 0 001.086-1.086L14.25 7.5l1.256-.837a4.5 4.5 0 001.528-1.732l.146-.292M6.115 5.19A9 9 0 1017.18 4.64M6.115 5.19A8.965 8.965 0 0112 3c1.929 0 3.716.607 5.18 1.64"
-                                    />
-                                </svg>
-                            </div>
-
-                            <h2 class="mt-6 text-xl font-semibold text-gray-900 dark:text-white">Vibrant Ecosystem</h2>
-
-                            <p class="mt-4 text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
-                                Laravel's robust library of first-party tools and libraries, such as
-                                <a
-                                    href="https://forge.laravel.com"
-                                    class="underline hover:text-gray-700 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                                    >Forge</a
-                                >,
-                                <a
-                                    href="https://vapor.laravel.com"
-                                    class="underline hover:text-gray-700 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                                    >Vapor</a
-                                >,
-                                <a
-                                    href="https://nova.laravel.com"
-                                    class="underline hover:text-gray-700 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                                    >Nova</a
-                                >, and
-                                <a
-                                    href="https://envoyer.io"
-                                    class="underline hover:text-gray-700 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                                    >Envoyer</a
-                                >
-                                help you take your projects to the next level. Pair them with powerful open source
-                                libraries like
-                                <a
-                                    href="https://laravel.com/docs/billing"
-                                    class="underline hover:text-gray-700 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                                    >Cashier</a
-                                >,
-                                <a
-                                    href="https://laravel.com/docs/dusk"
-                                    class="underline hover:text-gray-700 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                                    >Dusk</a
-                                >,
-                                <a
-                                    href="https://laravel.com/docs/broadcasting"
-                                    class="underline hover:text-gray-700 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                                    >Echo</a
-                                >,
-                                <a
-                                    href="https://laravel.com/docs/horizon"
-                                    class="underline hover:text-gray-700 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                                    >Horizon</a
-                                >,
-                                <a
-                                    href="https://laravel.com/docs/sanctum"
-                                    class="underline hover:text-gray-700 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                                    >Sanctum</a
-                                >,
-                                <a
-                                    href="https://laravel.com/docs/telescope"
-                                    class="underline hover:text-gray-700 dark:hover:text-white focus:outline focus:outline-2 focus:rounded-sm focus:outline-red-500"
-                                    >Telescope</a
-                                >, and more.
-                            </p>
+                        <div class="w-toast" :class="{ in: toastIn }" role="status">
+                            <span class="w-toast-ic"><MessageCircle :size="16" /></span>
+                            <span>
+                                <b>حجز جديد من رابط الحجز</b>
+                                <small>نور اختارت العناية مع سارة الساعة 10 ص</small>
+                            </span>
                         </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="flex justify-center mt-16 px-6 sm:items-center sm:justify-between">
-                <div class="text-center text-sm sm:text-start">&nbsp;</div>
+            <!-- المزايا -->
+            <section id="features" class="w-section">
+                <div class="w-wrap">
+                    <h2 class="w-h2">من الحجز إلى الفاتورة في مكان واحد</h2>
 
-                <div class="text-center text-sm text-gray-500 dark:text-gray-400 sm:text-end sm:ms-0">
-                    Laravel v{{ laravelVersion }} (PHP v{{ phpVersion }})
+                    <div class="w-feat-grid">
+                        <ul class="w-feat-list">
+                            <li v-for="f in features" :key="f.title">
+                                <span class="w-feat-ic"><component :is="f.icon" :size="20" /></span>
+                                <div>
+                                    <h3>{{ f.title }}</h3>
+                                    <p>{{ f.text }}</p>
+                                </div>
+                            </li>
+                        </ul>
+
+                        <!-- صفحة الحجز كما يراها الزبون -->
+                        <div class="w-phone-wrap">
+                            <div class="w-phone" aria-label="مثال تفاعلي لصفحة الحجز كما يراها الزبون">
+                                <div class="w-phone-head">
+                                    <span class="w-logo sm"><Crown :size="14" /></span>
+                                    <b>ROYAL LOOK</b>
+                                </div>
+                                <div class="w-phone-body">
+                                    <div class="w-phone-q">اختر الوقت المناسب</div>
+                                    <div class="w-phone-sub">حلاقة مع أحمد، الأربعاء</div>
+                                    <div class="w-chips">
+                                        <button
+                                            v-for="t in times"
+                                            :key="t.t"
+                                            type="button"
+                                            class="w-chip"
+                                            :class="{ on: picked === t.t, taken: t.taken }"
+                                            :disabled="t.taken"
+                                            :aria-pressed="picked === t.t"
+                                            @click="pick(t.t)"
+                                        >{{ t.t }}</button>
+                                    </div>
+                                    <div class="w-fake">الاسم</div>
+                                    <div class="w-fake">رقم الهاتف</div>
+                                    <button type="button" class="w-phone-btn" :class="{ done: booked }" @click="booked = true">
+                                        <template v-if="booked"><Check :size="16" /> تم إرسال طلب الحجز</template>
+                                        <template v-else>تأكيد حجز {{ picked }}</template>
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="w-phone-cap">جرّب اختيار وقت. زبونك يحجز بدون إنشاء حساب.</p>
+                        </div>
+                    </div>
                 </div>
+            </section>
+
+            <!-- خطوات البدء -->
+            <section id="how" class="w-section w-section-tight">
+                <div class="w-wrap">
+                    <h2 class="w-h2">محلك جاهز لاستقبال الحجوزات في ثلاث خطوات</h2>
+                    <ol class="w-steps">
+                        <li v-for="(s, i) in steps" :key="s.title">
+                            <span class="w-step-n">{{ i + 1 }}</span>
+                            <h3>{{ s.title }}</h3>
+                            <p>{{ s.text }}</p>
+                        </li>
+                    </ol>
+                </div>
+            </section>
+
+            <!-- الدعوة الأخيرة -->
+            <section class="w-section w-section-tight">
+                <div class="w-wrap">
+                    <div class="w-cta">
+                        <div>
+                            <h2 class="w-cta-h">ابدأ بترتيب مواعيد محلك اليوم</h2>
+                            <p>أنشئ حساباً لمحلك، أو ادخل إلى حسابك إن كان لديك واحد.</p>
+                        </div>
+                        <div class="w-cta-btns">
+                            <a v-if="canRegister" href="/register" class="w-btn w-btn-light w-btn-lg">إنشاء حساب</a>
+                            <button v-if="canLogin" type="button" class="w-btn w-btn-outline-light w-btn-lg" @click="openLogin">تسجيل الدخول</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="w-footer">
+            <div class="w-wrap w-footer-in">
+                <span>وقتي (Wa9ti) © 2026</span>
+                <a href="/admin/login">لوحة الإدارة</a>
+            </div>
+        </footer>
+
+        <!-- نافذة تسجيل الدخول -->
+        <div v-if="loginOpen" class="w-overlay" @click.self="closeLogin">
+            <div class="w-modal" role="dialog" aria-modal="true" aria-labelledby="w-login-title">
+                <button type="button" class="w-modal-x" aria-label="إغلاق" @click="closeLogin"><X :size="18" /></button>
+                <h2 id="w-login-title">تسجيل الدخول إلى محلك</h2>
+                <p>لكل محل عنوانه الخاص. اكتب معرّف محلك، وهو أول جزء من رابط الحجز الخاص بك.</p>
+                <form @submit.prevent="goToShop">
+                    <label for="w-shop">معرّف المحل</label>
+                    <input
+                        id="w-shop"
+                        ref="shopInput"
+                        v-model="shop"
+                        type="text"
+                        dir="ltr"
+                        inputmode="url"
+                        autocomplete="off"
+                        placeholder="royal-look"
+                    />
+                    <div v-if="shopError" class="w-err">{{ shopError }}</div>
+                    <button type="submit" class="w-btn w-btn-solid w-btn-lg w-full">متابعة إلى تسجيل الدخول</button>
+                </form>
+                <a v-if="canRegister" href="/register" class="w-modal-alt">ليس لديك محل بعد؟ أنشئ حساباً</a>
             </div>
         </div>
     </div>
 </template>
 
-<style>
-.bg-dots-darker {
-    background-image: url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1.22676 0C1.91374 0 2.45351 0.539773 2.45351 1.22676C2.45351 1.91374 1.91374 2.45351 1.22676 2.45351C0.539773 2.45351 0 1.91374 0 1.22676C0 0.539773 0.539773 0 1.22676 0Z' fill='rgba(0,0,0,0.07)'/%3E%3C/svg%3E");
+<style scoped>
+.w-page {
+    --paper: #eef2f9;
+    --ink: #0a1a3f;
+    --ink-2: #3f5079;
+    --cobalt: #2b59ff;
+    --mint: #12b886;
+    --amber: #f59f00;
+    --line: #d3dcec;
+    --white: #ffffff;
+
+    min-height: 100vh;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans Arabic', Tahoma, system-ui, sans-serif;
+    font-size: 1rem;
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
 }
-@media (prefers-color-scheme: dark) {
-    .dark\:bg-dots-lighter {
-        background-image: url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1.22676 0C1.91374 0 2.45351 0.539773 2.45351 1.22676C2.45351 1.91374 1.91374 2.45351 1.22676 2.45351C0.539773 2.45351 0 1.91374 0 1.22676C0 0.539773 0.539773 0 1.22676 0Z' fill='rgba(255,255,255,0.07)'/%3E%3C/svg%3E");
-    }
+.w-page *,
+.w-page *::before,
+.w-page *::after { box-sizing: border-box; }
+.w-page :focus-visible { outline: 3px solid var(--cobalt); outline-offset: 3px; }
+.w-page h1, .w-page h2, .w-page h3, .w-page p, .w-page ul, .w-page ol { margin: 0; padding: 0; }
+.w-page ul, .w-page ol { list-style: none; }
+.w-page a { color: inherit; text-decoration: none; }
+.w-page button { font-family: inherit; cursor: pointer; }
+
+.w-wrap { width: 100%; max-width: 74rem; margin-inline: auto; padding-inline: 1.5rem; }
+.w-full { width: 100%; }
+
+/* ───── أزرار ───── */
+.w-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    padding: .7rem 1.25rem; border-radius: .9rem; border: 1.5px solid transparent;
+    font-size: .95rem; font-weight: 600; line-height: 1.4; white-space: nowrap;
+    transition: background-color .15s, border-color .15s, color .15s;
+}
+.w-btn-lg { padding: .95rem 1.7rem; font-size: 1.05rem; }
+.w-btn-solid { background: var(--cobalt); color: var(--white); }
+.w-btn-solid:hover { background: #1f47d9; }
+.w-btn-ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.w-btn-ghost:hover { border-color: var(--ink); }
+.w-btn-light { background: var(--white); color: var(--ink); }
+.w-btn-light:hover { background: #e3eaff; }
+.w-btn-outline-light { background: transparent; color: var(--white); border-color: rgba(255,255,255,.4); }
+.w-btn-outline-light:hover { border-color: var(--white); }
+
+/* ───── الشريط العلوي ───── */
+.w-nav {
+    position: sticky; top: 0; z-index: 30;
+    background: rgba(238, 242, 249, .88);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+}
+.w-nav-in { display: flex; align-items: center; gap: 2rem; min-height: 4.25rem; }
+.w-brand { display: inline-flex; align-items: center; gap: .6rem; }
+.w-logo {
+    display: grid; place-items: center; width: 2.25rem; height: 2.25rem;
+    border-radius: .7rem; background: var(--cobalt); color: var(--white);
+}
+.w-logo.sm { width: 1.75rem; height: 1.75rem; border-radius: .5rem; }
+.w-brand-ar { font-family: 'Lalezar', 'IBM Plex Sans Arabic', sans-serif; font-size: 1.7rem; line-height: 1; }
+.w-brand-en { font-size: .8rem; color: var(--ink-2); direction: ltr; }
+.w-links { display: flex; gap: 1.5rem; margin-inline-end: auto; }
+.w-links a { color: var(--ink-2); font-weight: 500; }
+.w-links a:hover { color: var(--ink); }
+.w-nav-cta { display: flex; gap: .6rem; }
+
+/* ───── الواجهة الرئيسية ───── */
+.w-hero { padding-block: 3.5rem 5.5rem; }
+.w-hero-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 3.5rem; align-items: center; }
+.w-h1 {
+    font-family: 'Lalezar', 'IBM Plex Sans Arabic', sans-serif; font-weight: 400;
+    font-size: clamp(3rem, 6.4vw, 5.2rem); line-height: 1.2; letter-spacing: 0;
+}
+.w-lead { margin-top: 1.4rem; max-width: 34rem; color: var(--ink-2); font-size: 1.1rem; }
+.w-hero-cta { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 2rem; }
+.w-note { margin-top: 1rem; font-size: .9rem; color: var(--ink-2); }
+
+/* ───── لوحة اليوم ───── */
+.w-board {
+    position: relative; background: var(--ink); color: var(--white);
+    border-radius: 1.75rem; padding: 1.4rem 1.4rem 1.2rem;
+    box-shadow: 0 30px 60px -28px rgba(10, 26, 63, .6);
+}
+.w-board-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.1rem; }
+.w-board-title { font-weight: 600; font-size: 1.05rem; }
+.w-board-sub { font-size: .8rem; color: #9fb0d6; }
+.w-board-stats { display: flex; gap: 1.5rem; }
+.w-board-stats div { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.3; }
+.w-board-stats b { font-family: 'Lalezar', sans-serif; font-weight: 400; font-size: 1.9rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.w-board-stats span { font-size: .78rem; color: #9fb0d6; }
+
+.w-board-scroll { overflow-x: auto; padding-bottom: .4rem; }
+.w-board-inner { min-width: 42rem; }
+.w-row { display: flex; align-items: stretch; gap: .5rem; margin-top: .45rem; }
+.w-row-hours { margin-top: 0; }
+.w-lane-label {
+    flex: 0 0 6.2rem; display: flex; align-items: center; gap: .5rem; color: #c8d3ee;
+}
+.w-lane-label span { display: flex; flex-direction: column; line-height: 1.25; }
+.w-lane-label b { font-weight: 600; color: var(--white); font-size: .9rem; }
+.w-lane-label small { font-size: .72rem; color: #9fb0d6; }
+.w-hours { flex: 1; display: grid; grid-template-columns: repeat(8, 1fr); }
+.w-hours span { font-size: .74rem; color: #9fb0d6; padding-inline-start: .35rem; }
+
+.w-lane {
+    flex: 1; display: grid; grid-template-columns: repeat(8, 1fr);
+    min-height: 3.7rem; border-radius: .8rem; background-color: rgba(255,255,255,.04);
+    background-image: repeating-linear-gradient(to left, transparent 0, transparent calc(12.5% - 1px), rgba(255,255,255,.09) calc(12.5% - 1px), rgba(255,255,255,.09) 12.5%);
+}
+.w-block {
+    display: flex; flex-direction: column; justify-content: center;
+    margin: 4px 2px; padding: .2rem .55rem; border-radius: .6rem; overflow: hidden;
+    line-height: 1.3; color: var(--ink);
+    opacity: 0; transform: scale(.85); transform-origin: right center;
+    transition: opacity .3s ease, transform .3s cubic-bezier(.2, .9, .3, 1.3);
+}
+.w-block.in { opacity: 1; transform: none; }
+.w-block b { font-size: .84rem; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.w-block small { font-size: .72rem; opacity: .8; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.w-block.confirmed { background: var(--mint); }
+.w-block.pending { background: var(--amber); }
+.w-block.new { background: var(--white); color: var(--cobalt); box-shadow: 0 0 0 3px rgba(43, 89, 255, .55); }
+
+.w-legend { display: flex; flex-wrap: wrap; gap: 1.1rem; margin-top: .9rem; font-size: .78rem; color: #c8d3ee; }
+.w-legend span { display: inline-flex; align-items: center; gap: .4rem; }
+.dot { width: .65rem; height: .65rem; border-radius: 50%; display: inline-block; }
+.dot.confirmed { background: var(--mint); }
+.dot.pending { background: var(--amber); }
+.dot.new { background: var(--white); box-shadow: 0 0 0 2px rgba(43, 89, 255, .7); }
+
+.w-toast {
+    position: absolute; inset-inline-start: 1rem; bottom: -1.6rem;
+    display: flex; align-items: center; gap: .7rem;
+    padding: .7rem 1rem; border-radius: 1rem; background: var(--white); color: var(--ink);
+    box-shadow: 0 16px 34px -14px rgba(10, 26, 63, .5);
+    opacity: 0; transform: translateY(10px); transition: opacity .35s ease, transform .35s ease;
+    pointer-events: none;
+}
+.w-toast.in { opacity: 1; transform: none; }
+.w-toast-ic { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--cobalt); color: var(--white); flex: none; }
+.w-toast span:last-child { display: flex; flex-direction: column; line-height: 1.35; }
+.w-toast b { font-size: .88rem; }
+.w-toast small { font-size: .76rem; color: var(--ink-2); }
+
+/* ───── أقسام ───── */
+.w-section { padding-block: 5.5rem; }
+.w-section-tight { padding-block: 3rem 4rem; }
+.w-h2 {
+    max-width: 40rem; margin-bottom: 3rem;
+    font-family: 'Lalezar', 'IBM Plex Sans Arabic', sans-serif; font-weight: 400;
+    font-size: clamp(2rem, 4vw, 3rem); line-height: 1.3;
+}
+
+.w-feat-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 4rem; align-items: start; }
+.w-feat-list li { display: flex; gap: 1.1rem; padding-block: 1.35rem; border-top: 1px solid var(--line); }
+.w-feat-list li:last-child { border-bottom: 1px solid var(--line); }
+.w-feat-ic { flex: none; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: .85rem; background: #dfe7ff; color: var(--cobalt); }
+.w-feat-list h3 { font-size: 1.1rem; font-weight: 600; line-height: 1.5; }
+.w-feat-list p { margin-top: .15rem; color: var(--ink-2); max-width: 36rem; }
+
+/* الهاتف */
+.w-phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 1rem; position: sticky; top: 6rem; }
+.w-phone {
+    width: 100%; max-width: 20rem; background: var(--white); border: 8px solid var(--ink);
+    border-radius: 2.4rem; overflow: hidden; box-shadow: 0 26px 50px -26px rgba(10, 26, 63, .55);
+}
+.w-phone-head { display: flex; align-items: center; gap: .55rem; padding: 1rem 1.1rem; background: var(--ink); color: var(--white); direction: ltr; justify-content: center; font-size: .9rem; }
+.w-phone-body { padding: 1.1rem; display: flex; flex-direction: column; gap: .6rem; }
+.w-phone-q { font-weight: 600; font-size: 1.05rem; }
+.w-phone-sub { font-size: .82rem; color: var(--ink-2); margin-top: -.4rem; }
+.w-chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: .45rem; margin-block: .3rem; }
+.w-chip {
+    padding: .5rem 0; border-radius: .7rem; border: 1.5px solid var(--line); background: var(--white);
+    color: var(--ink); font-size: .85rem; font-weight: 500; direction: ltr;
+    transition: border-color .15s, background-color .15s, color .15s;
+}
+.w-chip:hover:not(:disabled) { border-color: var(--cobalt); }
+.w-chip.on { background: var(--cobalt); border-color: var(--cobalt); color: var(--white); }
+.w-chip.taken { background: #f1f4f9; color: #97a3bd; text-decoration: line-through; cursor: not-allowed; }
+.w-fake { padding: .6rem .8rem; border-radius: .7rem; background: #f1f4f9; color: #7d8aa8; font-size: .85rem; }
+.w-phone-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+    margin-top: .3rem; padding: .8rem; border: 0; border-radius: .8rem;
+    background: var(--ink); color: var(--white); font-weight: 600; font-size: .92rem;
+    transition: background-color .2s;
+}
+.w-phone-btn.done { background: var(--mint); color: var(--ink); }
+.w-phone-cap { font-size: .85rem; color: var(--ink-2); text-align: center; }
+
+/* الخطوات */
+.w-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5rem; }
+.w-steps li { padding-top: 1.4rem; border-top: 3px solid var(--ink); }
+.w-step-n { display: block; font-family: 'Lalezar', sans-serif; font-size: 2.6rem; line-height: 1.1; color: var(--cobalt); }
+.w-steps h3 { margin-top: .5rem; font-size: 1.2rem; font-weight: 600; }
+.w-steps p { margin-top: .3rem; color: var(--ink-2); max-width: 22rem; }
+
+/* الدعوة الأخيرة */
+.w-cta {
+    display: flex; align-items: center; justify-content: space-between; gap: 2rem; flex-wrap: wrap;
+    padding: 3rem 3rem; border-radius: 2rem; background: var(--ink); color: var(--white);
+}
+.w-cta-h { font-family: 'Lalezar', 'IBM Plex Sans Arabic', sans-serif; font-weight: 400; font-size: clamp(1.8rem, 3.4vw, 2.6rem); line-height: 1.35; }
+.w-cta p { margin-top: .3rem; color: #b6c4e6; }
+.w-cta-btns { display: flex; gap: .75rem; flex-wrap: wrap; }
+
+.w-footer { border-top: 1px solid var(--line); padding-block: 1.6rem; font-size: .88rem; color: var(--ink-2); }
+.w-footer-in { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.w-footer a:hover { color: var(--ink); }
+
+/* ───── نافذة الدخول ───── */
+.w-overlay { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 1.25rem; background: rgba(10, 26, 63, .55); }
+.w-modal { position: relative; width: 100%; max-width: 26rem; padding: 2rem 1.75rem 1.6rem; border-radius: 1.5rem; background: var(--white); box-shadow: 0 30px 60px -20px rgba(10, 26, 63, .6); }
+.w-modal h2 { font-family: 'Lalezar', sans-serif; font-weight: 400; font-size: 1.8rem; line-height: 1.3; }
+.w-modal p { margin-top: .3rem; color: var(--ink-2); font-size: .95rem; }
+.w-modal form { display: flex; flex-direction: column; gap: .5rem; margin-top: 1.2rem; }
+.w-modal label { font-weight: 600; font-size: .9rem; }
+.w-modal input { padding: .8rem 1rem; border: 1.5px solid var(--line); border-radius: .8rem; font-size: 1rem; text-align: left; background: #f7f9fd; color: var(--ink); }
+.w-modal input:focus { border-color: var(--cobalt); outline: none; background: var(--white); box-shadow: 0 0 0 3px rgba(43, 89, 255, .2); }
+.w-err { color: #c92a2a; font-size: .85rem; }
+.w-modal form .w-btn { margin-top: .6rem; }
+.w-modal-x { position: absolute; inset-block-start: 1rem; inset-inline-start: 1rem; display: grid; place-items: center; width: 2rem; height: 2rem; border: 0; border-radius: 50%; background: #f1f4f9; color: var(--ink); }
+.w-modal-alt { display: block; margin-top: 1.1rem; text-align: center; font-size: .9rem; color: var(--cobalt); font-weight: 600; }
+.w-modal-alt:hover { text-decoration: underline; }
+
+/* ───── شاشات أصغر ───── */
+@media (max-width: 62rem) {
+    .w-hero-grid, .w-feat-grid { grid-template-columns: minmax(0, 1fr); gap: 3.5rem; }
+    .w-phone-wrap { position: static; }
+    .w-steps { grid-template-columns: minmax(0, 1fr); gap: 1.8rem; }
+    .w-links { display: none; }
+    .w-nav-in { justify-content: space-between; }
+}
+@media (max-width: 34rem) {
+    .w-wrap { padding-inline: 1rem; }
+    .w-hero { padding-block: 2rem 4.5rem; }
+    .w-nav-cta .w-btn-ghost { display: none; }
+    .w-cta { padding: 2rem 1.5rem; }
+    .w-board { padding: 1rem .9rem; }
+    .w-board-stats { gap: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .w-block, .w-toast, .w-btn, .w-chip, .w-phone-btn { transition: none; }
 }
 </style>

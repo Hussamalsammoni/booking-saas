@@ -10,74 +10,75 @@ use Inertia\Inertia;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 
 class BookingPageController extends Controller
 {
     public function getAvailableSlots(Request $request)
-{
-    $request->validate([
-        'staff_id'   => 'required|exists:staff,id',
-        'service_id' => 'required|exists:services,id',
-        'date'       => 'required|date_format:Y-m-d',
-    ]);
+    {
+        $request->validate([
+            'staff_id'   => 'required|exists:staff,id',
+            'service_id' => 'required|exists:services,id',
+            'date'       => 'required|date_format:Y-m-d',
+        ]);
 
-    $service  = Service::findOrFail($request->service_id);
-    $duration = $service->duration_minutes;
+        $service  = Service::findOrFail($request->service_id);
+        $duration = $service->duration_minutes;
 
-    $workStart = Carbon::parse($request->date . ' 09:00:00');
-    $workEnd   = Carbon::parse($request->date . ' 18:00:00');
+        $workStart = Carbon::parse($request->date . ' 09:00:00');
+        $workEnd   = Carbon::parse($request->date . ' 18:00:00');
 
-    $existingBookings = Booking::where('staff_id', $request->staff_id)
-        ->where('status', '!=', 'cancelled')
-        ->whereDate('start_time', $request->date)
-        ->get();
+        $existingBookings = Booking::where('staff_id', $request->staff_id)
+            ->where('status', '!=', 'cancelled')
+            ->whereDate('start_time', $request->date)
+            ->get();
 
-    $slots = [];
-    $currentSlot = $workStart->clone();
+        $slots = [];
+        $currentSlot = $workStart->clone();
 
-    while ($currentSlot->clone()->addMinutes($duration)->lte($workEnd)) {
-        $slotStart = $currentSlot->clone();
-        $slotEnd   = $currentSlot->clone()->addMinutes($duration);
+        while ($currentSlot->clone()->addMinutes($duration)->lte($workEnd)) {
+            $slotStart = $currentSlot->clone();
+            $slotEnd   = $currentSlot->clone()->addMinutes($duration);
 
-        $isOverlap = $existingBookings->contains(function ($booking) use ($slotStart, $slotEnd) {
-            $bStart = Carbon::parse($booking->start_time);
-            $bEnd   = Carbon::parse($booking->end_time);
-            return $slotStart->lt($bEnd) && $slotEnd->gt($bStart);
-        });
+            $isOverlap = $existingBookings->contains(function ($booking) use ($slotStart, $slotEnd) {
+                $bStart = Carbon::parse($booking->start_time);
+                $bEnd   = Carbon::parse($booking->end_time);
+                return $slotStart->lt($bEnd) && $slotEnd->gt($bStart);
+            });
 
-        if (!$isOverlap && $slotStart->gt(Carbon::now())) {
-            $slots[] = [
-                'time'      => $slotStart->format('H:i'),
-                'full_date' => $slotStart->format('Y-m-d H:i:s'),
-                'formatted' => $slotStart->format('h:i A'),
-            ];
+            if (!$isOverlap && $slotStart->gt(Carbon::now())) {
+                $slots[] = [
+                    'time'      => $slotStart->format('H:i'),
+                    'full_date' => $slotStart->format('Y-m-d H:i:s'),
+                    'formatted' => $slotStart->format('h:i A'),
+                ];
+            }
+
+            $currentSlot->addMinutes(30);
         }
 
-        $currentSlot->addMinutes(30);
+        return response()->json($slots);
     }
 
-    return response()->json($slots);
-}
+    public function index()
+    {
+        $t = tenant();
 
-  public function index()
-{
-    $t = tenant();
-
-    return Inertia::render('Booking/Show', [
-        'services' => Service::where('is_active', true)->get(),
-        'staff'    => Staff::with('user', 'services')->where('is_active', true)->get(),
-        'shop'     => [
-            'name'            => $t->shop_name,
-            'description'     => $t->description,
-            'primary_color'   => $t->primary_color ?? '#ff0569',
-            'secondary_color' => $t->secondary_color ?? '#1E1E24',
-            'bg_color'        => $t->bg_color ?? '#F9F8F6',
-            'text_color'      => $t->text_color ?? '#2D2D2D',
-            'logo'            => $t->logo_path ? tenant_asset($t->logo_path) : null,
-            'cover'           => $t->cover_path ? tenant_asset($t->cover_path) : null,
-        ],
-    ]);
-}
+        return Inertia::render('Booking/Show', [
+            'services' => Service::where('is_active', true)->get(),
+            'staff'    => Staff::with('user', 'services')->where('is_active', true)->get(),
+            'shop'     => [
+                'name'            => $t->shop_name,
+                'description'     => $t->description,
+                'primary_color'   => $t->primary_color ?? '#ff0569',
+                'secondary_color' => $t->secondary_color ?? '#1E1E24',
+                'bg_color'        => $t->bg_color ?? '#F9F8F6',
+                'text_color'      => $t->text_color ?? '#2D2D2D',
+                'logo'            => $t->logo_path ? tenant_asset($t->logo_path) : null,
+                'cover'           => $t->cover_path ? tenant_asset($t->cover_path) : null,
+            ],
+        ]);
+    }
 
     public function store(Request $request)
     {
@@ -92,7 +93,7 @@ class BookingPageController extends Controller
         $service = Service::findOrFail($request->service_id);
         $staff   = Staff::with('user')->findOrFail($request->staff_id);
 
-        $bufferMinutes = 5; 
+        $bufferMinutes = 5;
         $startTime = Carbon::parse($request->start_time);
         $endTime   = $startTime->clone()->addMinutes($service->duration_minutes);
 
@@ -122,13 +123,21 @@ class BookingPageController extends Controller
         // إرسال إشعار الواتساب المبدئي (قيد الانتظار)
         $this->sendWhatsAppNotification($booking, $service, $staff);
 
-        // التوجيه المباشر لصفحة النجاح المستقلة
-        return redirect()->route('booking.success', $booking->id);
+        // التوجيه لصفحة النجاح عبر رابط موقّع (ما حدا بيقدر يخمّن أرقام الحجوزات)
+        return redirect()->to(
+            URL::signedRoute('booking.success', ['booking' => $booking->id])
+        );
     }
 
     public function success(Booking $booking)
     {
         $booking->load(['service', 'staff.user']);
+
+        // رقم واتساب المحل بصيغة دولية. إذا مو محدد منرجع null والزر بيختفي من الصفحة
+        $businessPhone = preg_replace('/\D/', '', (string) tenant('phone'));
+        if (str_starts_with($businessPhone, '09')) {
+            $businessPhone = '963' . substr($businessPhone, 1);
+        }
 
         return Inertia::render('Booking/Success', [
             'booking' => [
@@ -138,7 +147,7 @@ class BookingPageController extends Controller
                 'staff_name'     => $booking->staff->user->name ?? 'الموظف',
                 'date'           => Carbon::parse($booking->start_time)->format('Y-m-d'),
                 'time'           => Carbon::parse($booking->start_time)->format('h:i A'),
-                'business_phone' => '9639XXXXXXX', // ضع رقم الواتساب الخاص بمدير الصالون هنا
+                'business_phone' => $businessPhone ?: null,
             ]
         ]);
     }

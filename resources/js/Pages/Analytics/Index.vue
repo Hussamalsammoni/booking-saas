@@ -1,6 +1,7 @@
 <script setup>
 import { Head, router } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import SimpleDatePicker from '@/Components/SimpleDatePicker.vue';
 import { ref, computed } from 'vue';
 
 import { Line, Bar, Doughnut } from 'vue-chartjs';
@@ -78,13 +79,13 @@ function applyFilter() {
 */
 
 function formatCurrency(value) {
-    return new Intl.NumberFormat('ar', {
+    return Number(value || 0).toLocaleString('ar-SY', {
         maximumFractionDigits: 0,
-    }).format(value || 0);
+    });
 }
 
 function formatNumber(value) {
-    return new Intl.NumberFormat('ar').format(value || 0);
+    return Number(value || 0).toLocaleString('ar-SY');
 }
 
 /*
@@ -224,7 +225,7 @@ const chartOptions = {
 
             callbacks: {
                 label(context) {
-                    return `الإيرادات: ${formatCurrency(context.raw)} $`;
+                    return `الإيرادات: ${formatCurrency(context.raw)} ل.س`;
                 },
             },
         },
@@ -581,10 +582,10 @@ const doughnutOptions = {
         </template>
 
 
-        <div class="py-8">
+        <div class="min-h-screen bg-[#f8fafc] py-8">
 
             <div
-                class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6"
+                class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6"
             >
 
 
@@ -606,10 +607,9 @@ const doughnutOptions = {
                                 من
                             </label>
 
-                            <input
-                                type="date"
+                            <SimpleDatePicker
                                 v-model="fromDate"
-                                class="border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 focus:ring-indigo-500"
+                                placeholder="اختر تاريخ"
                             />
 
                         </div>
@@ -623,10 +623,9 @@ const doughnutOptions = {
                                 إلى
                             </label>
 
-                            <input
-                                type="date"
+                            <SimpleDatePicker
                                 v-model="toDate"
-                                class="border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 focus:ring-indigo-500"
+                                placeholder="اختر تاريخ"
                             />
 
                         </div>
@@ -675,7 +674,7 @@ const doughnutOptions = {
                             <span
                                 class="text-gray-500 mb-1"
                             >
-                                $
+                                ل.س
                             </span>
 
                         </div>
@@ -911,7 +910,7 @@ const doughnutOptions = {
                                                             s.revenue
                                                         )
                                                     }}
-                                                    $
+                                                    ل.س
                                                 </span>
 
                                             </div>
@@ -934,7 +933,7 @@ const doughnutOptions = {
                                                     s.revenue
                                                 )
                                             }}
-                                            $
+                                            ل.س
                                         </p>
 
                                         <p
@@ -1444,7 +1443,7 @@ const doughnutOptions = {
                                                         topEmployee.revenue
                                                     )
                                                 }}
-                                                $
+                                                ل.س
                                             </p>
 
                                         </div>
@@ -1698,7 +1697,7 @@ const doughnutOptions = {
                                                                 st.revenue
                                                             )
                                                         }}
-                                                        $
+                                                        ل.س
                                                     </p>
 
                                                     <p

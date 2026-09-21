@@ -1,13 +1,19 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 const props = defineProps({
     booking: Object,
 });
 
-// إعداد رابط التواصل المباشر عبر الواتساب مع نص مجهز
-const whatsappUrl = `https://wa.me/${props.booking.business_phone}?text=` + 
-    encodeURIComponent(`مرحباً، لدي استفسار بشأن الحجز رقم #${props.booking.id} باسم ${props.booking.customer_name}`);
+// الرقم لازم يكون أرقام فقط (مثلاً 963912345678). إذا ما انحط رقم للمحل منخفي الزر بدل ما يفتح رقم وهمي
+const hasPhone = computed(() => /^\d{8,15}$/.test(props.booking.business_phone || ''));
+
+// رابط التواصل المباشر عبر الواتساب مع نص مجهز
+const whatsappUrl = computed(() =>
+    `https://wa.me/${props.booking.business_phone}?text=` +
+    encodeURIComponent(`مرحباً، لدي استفسار بشأن الحجز رقم #${props.booking.id} باسم ${props.booking.customer_name}`)
+);
 </script>
 
 <template>
@@ -15,7 +21,7 @@ const whatsappUrl = `https://wa.me/${props.booking.business_phone}?text=` +
 
     <div class="min-h-screen bg-gradient-to-b from-indigo-50 to-white flex items-center justify-center p-4">
         <div class="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center space-y-6">
-            
+
             <!-- أيقونة النجاح -->
             <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-4xl font-bold">
                 ✓
@@ -48,16 +54,17 @@ const whatsappUrl = `https://wa.me/${props.booking.business_phone}?text=` +
 
             <!-- الأزرار والتفاعل -->
             <div class="space-y-3 pt-2">
-                <a 
-                    :href="whatsappUrl" 
-                    target="_blank" 
+                <a
+                    v-if="hasPhone"
+                    :href="whatsappUrl"
+                    target="_blank"
                     class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow-sm"
                 >
                     <span>💬 التواصل مع الصالون عبر الواتساب</span>
                 </a>
 
-                <Link 
-                    :href="route('booking.index')" 
+                <Link
+                    :href="route('booking.index')"
                     class="block text-sm text-indigo-600 hover:text-indigo-800 font-medium underline pt-2"
                 >
                     إجراء حجز جديد

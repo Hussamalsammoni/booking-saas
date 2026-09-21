@@ -15,5 +15,6 @@ Route::middleware(['central'])->prefix('admin')->name('admin.')->group(function 
         Route::post('logout', [AuthController::class, 'logout'])->name('logout');
         Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::post('tenants/{tenant}/toggle-active', [DashboardController::class, 'toggleActive'])->name('tenants.toggle-active');
+        Route::post('tenants/{tenant}/extend', [DashboardController::class, 'extendSubscription'])->name('tenants.extend');
     });
 });

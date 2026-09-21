@@ -19,6 +19,7 @@ class User extends Authenticatable
         'password',
         'phone',
         'role',
+        'avatar_path',
     ];
 
     protected $hidden = [
@@ -30,6 +31,15 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    protected $appends = ['avatar_url'];
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        return $this->avatar_path
+            ? url('/profile/avatar/' . $this->id) . '?v=' . md5($this->avatar_path)
+            : null;
+    }
 
     public function staff()
     {

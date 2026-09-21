@@ -66,6 +66,7 @@ protected $middlewareAliases = [
     'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
     'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
     'central' => \App\Http\Middleware\EnsureCentralDomain::class,
+    'owner' => \App\Http\Middleware\EnsureUserIsOwner::class,
     'tenant.active' => \App\Http\Middleware\EnsureTenantIsActive::class,
     ];
 }

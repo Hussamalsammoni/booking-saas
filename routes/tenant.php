@@ -11,6 +11,7 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\ProfileAvatarController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Middleware\EnsureTenantIsActive;
 use Illuminate\Support\Facades\Route;
@@ -25,12 +26,12 @@ $tenancyMiddleware = [
     EnsureTenantIsActive::class,
 ];
 
-Route::middleware(array_merge($tenancyMiddleware, ['auth']))
+Route::middleware(array_merge($tenancyMiddleware, ['auth', 'owner']))
     ->resource('services', \App\Http\Controllers\ServiceController::class);
-Route::middleware(array_merge($tenancyMiddleware, ['auth']))
+Route::middleware(array_merge($tenancyMiddleware, ['auth', 'owner']))
     ->resource('staff', \App\Http\Controllers\StaffController::class);
-Route::middleware(array_merge($tenancyMiddleware, ['auth']))->get('/settings/shop', [\App\Http\Controllers\ShopSettingsController::class, 'edit'])->name('shop-settings.edit');
-Route::middleware(array_merge($tenancyMiddleware, ['auth']))->post('/settings/shop', [\App\Http\Controllers\ShopSettingsController::class, 'update'])->name('shop-settings.update');
+Route::middleware(array_merge($tenancyMiddleware, ['auth', 'owner']))->get('/settings/shop', [\App\Http\Controllers\ShopSettingsController::class, 'edit'])->name('shop-settings.edit');
+Route::middleware(array_merge($tenancyMiddleware, ['auth', 'owner']))->post('/settings/shop', [\App\Http\Controllers\ShopSettingsController::class, 'update'])->name('shop-settings.update');
     Route::middleware($tenancyMiddleware)->get('/book', [\App\Http\Controllers\BookingPageController::class, 'index'])->name('booking.index');
 Route::middleware($tenancyMiddleware)->post('/book', [\App\Http\Controllers\BookingPageController::class, 'store'])->name('booking.store');
 Route::middleware($tenancyMiddleware)
@@ -38,13 +39,14 @@ Route::middleware($tenancyMiddleware)
     ->name('booking.success');
 Route::middleware($tenancyMiddleware)->get('/availability', [\App\Http\Controllers\AvailabilityController::class, 'getSlots'])->name('availability.slots');
 Route::middleware(array_merge($tenancyMiddleware, ['auth']))->get('/bookings', [\App\Http\Controllers\BookingManagementController::class, 'index'])->name('bookings.index');
+Route::middleware(array_merge($tenancyMiddleware, ['auth']))->post('/bookings', [\App\Http\Controllers\BookingManagementController::class, 'store'])->name('bookings.store');
 Route::middleware(array_merge($tenancyMiddleware, ['auth']))->patch('/bookings/{booking}/status', [\App\Http\Controllers\BookingManagementController::class, 'updateStatus'])->name('bookings.updateStatus');
-Route::middleware(array_merge($tenancyMiddleware, ['auth']))->get('/invoices', [\App\Http\Controllers\InvoiceController::class, 'index'])->name('invoices.index');
-Route::middleware(array_merge($tenancyMiddleware, ['auth']))->patch('/invoices/{invoice}/pay', [\App\Http\Controllers\InvoiceController::class, 'markAsPaid'])->name('invoices.markAsPaid');
-Route::middleware(array_merge($tenancyMiddleware, ['auth']))->patch('/invoices/{invoice}', [\App\Http\Controllers\InvoiceController::class, 'update'])->name('invoices.update');
-Route::middleware(array_merge($tenancyMiddleware, ['auth']))->delete('/invoices/{invoice}', [\App\Http\Controllers\InvoiceController::class, 'destroy'])->name('invoices.destroy');
-Route::middleware(array_merge($tenancyMiddleware, ['auth']))->get('/invoices/{invoice}/download', [\App\Http\Controllers\InvoicePdfController::class, 'download'])->name('invoices.download');
-Route::middleware(array_merge($tenancyMiddleware, ['auth', 'verified']))->get('/analytics', [\App\Http\Controllers\AnalyticsController::class, 'index'])->name('analytics.index');
+Route::middleware(array_merge($tenancyMiddleware, ['auth', 'owner']))->get('/invoices', [\App\Http\Controllers\InvoiceController::class, 'index'])->name('invoices.index');
+Route::middleware(array_merge($tenancyMiddleware, ['auth', 'owner']))->patch('/invoices/{invoice}/pay', [\App\Http\Controllers\InvoiceController::class, 'markAsPaid'])->name('invoices.markAsPaid');
+Route::middleware(array_merge($tenancyMiddleware, ['auth', 'owner']))->patch('/invoices/{invoice}', [\App\Http\Controllers\InvoiceController::class, 'update'])->name('invoices.update');
+Route::middleware(array_merge($tenancyMiddleware, ['auth', 'owner']))->delete('/invoices/{invoice}', [\App\Http\Controllers\InvoiceController::class, 'destroy'])->name('invoices.destroy');
+Route::middleware(array_merge($tenancyMiddleware, ['auth', 'owner']))->get('/invoices/{invoice}/download', [\App\Http\Controllers\InvoicePdfController::class, 'download'])->name('invoices.download');
+Route::middleware(array_merge($tenancyMiddleware, ['auth', 'verified', 'owner']))->get('/analytics', [\App\Http\Controllers\AnalyticsController::class, 'index'])->name('analytics.index');
 // --- Dashboard & Profile ---
 Route::middleware(array_merge($tenancyMiddleware, ['auth', 'verified']))
     ->get('/dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])
@@ -53,6 +55,11 @@ Route::middleware(array_merge($tenancyMiddleware, ['auth', 'verified']))
 Route::middleware(array_merge($tenancyMiddleware, ['auth']))->get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
 Route::middleware(array_merge($tenancyMiddleware, ['auth']))->patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
 Route::middleware(array_merge($tenancyMiddleware, ['auth']))->delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+// --- Profile avatar ---
+Route::middleware(array_merge($tenancyMiddleware, ['auth']))->get('/profile/avatar/{id}', [ProfileAvatarController::class, 'show'])->name('profile.avatar.show');
+Route::middleware(array_merge($tenancyMiddleware, ['auth']))->post('/profile/avatar', [ProfileAvatarController::class, 'update'])->name('profile.avatar.update');
+Route::middleware(array_merge($tenancyMiddleware, ['auth']))->delete('/profile/avatar', [ProfileAvatarController::class, 'destroy'])->name('profile.avatar.destroy');
 
 // --- Guest Auth Routes ---
 
@@ -71,3 +78,5 @@ Route::middleware(array_merge($tenancyMiddleware, ['auth']))->get('confirm-passw
 Route::middleware(array_merge($tenancyMiddleware, ['auth']))->post('confirm-password', [ConfirmablePasswordController::class, 'store']);
 Route::middleware(array_merge($tenancyMiddleware, ['auth']))->put('password', [PasswordController::class, 'update'])->name('password.update');
 Route::middleware(array_merge($tenancyMiddleware, ['auth']))->post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+Route::middleware(array_merge($tenancyMiddleware, ['auth']))->get('/notifications', [\App\Http\Controllers\NotificationController::class, 'index'])->name('notifications.index');
+Route::middleware(array_merge($tenancyMiddleware, ['auth']))->post('/notifications/read', [\App\Http\Controllers\NotificationController::class, 'markAllRead'])->name('notifications.read');

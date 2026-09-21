@@ -4,6 +4,8 @@ import { Link, usePage } from '@inertiajs/vue3';
 
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
+import NotificationBell from '@/Components/NotificationBell.vue';
+import UserAvatar from '@/Components/UserAvatar.vue';
 
 import {
     LayoutDashboard,
@@ -19,7 +21,6 @@ import {
     ChevronDown,
     LogOut,
     UserRound,
-    Bell,
     ExternalLink,
 } from 'lucide-vue-next';
 
@@ -28,44 +29,57 @@ const page = usePage();
 const showingMobileMenu = ref(false);
 
 const user = computed(() => page.props.auth?.user || {});
+const shop = computed(() => page.props.shop || {});
+const isOwner = computed(() => user.value.role === 'owner');
 
-const navItems = [
+const allNavItems = [
     {
         name: 'dashboard',
         label: 'لوحة التحكم',
         icon: LayoutDashboard,
+        ownerOnly: false,
     },
     {
         name: 'bookings.index',
         label: 'الحجوزات',
         icon: CalendarDays,
+        ownerOnly: false,
     },
     {
         name: 'services.index',
         label: 'الخدمات',
         icon: Scissors,
+        ownerOnly: true,
     },
     {
         name: 'staff.index',
         label: 'الموظفين',
         icon: Users,
+        ownerOnly: true,
     },
     {
         name: 'invoices.index',
         label: 'الفواتير',
         icon: Receipt,
+        ownerOnly: true,
     },
     {
         name: 'analytics.index',
         label: 'التقارير والتحليلات',
         icon: BarChart3,
+        ownerOnly: true,
     },
     {
         name: 'shop-settings.edit',
         label: 'إعدادات المحل',
         icon: Settings,
+        ownerOnly: true,
     },
 ];
+
+const navItems = computed(() =>
+    allNavItems.filter((item) => !item.ownerOnly || isOwner.value)
+);
 
 function isActive(item) {
     if (item.name === 'dashboard') {
@@ -82,21 +96,6 @@ function isActive(item) {
 
 function closeMobileMenu() {
     showingMobileMenu.value = false;
-}
-
-function getInitials(name) {
-    if (!name) return '?';
-
-    const words = name.trim().split(/\s+/);
-
-    if (words.length === 1) {
-        return words[0].substring(0, 2).toUpperCase();
-    }
-
-    return (
-        words[0].charAt(0) +
-        words[words.length - 1].charAt(0)
-    ).toUpperCase();
 }
 </script>
 
@@ -139,9 +138,17 @@ function getInitials(name) {
 
                         <div
                             class="w-11 h-11 rounded-xl bg-white/15 border border-white/20
-                                   flex items-center justify-center backdrop-blur-sm shrink-0"
+                                   flex items-center justify-center backdrop-blur-sm shrink-0 overflow-hidden"
                         >
+                            <img
+                                v-if="shop.logo_url"
+                                :src="shop.logo_url"
+                                class="w-full h-full object-cover"
+                                alt="شعار المحل"
+                            />
+
                             <Sparkles
+                                v-else
                                 class="w-6 h-6 text-white"
                                 stroke-width="1.8"
                             />
@@ -149,12 +156,12 @@ function getInitials(name) {
 
                         <div class="min-w-0">
 
-                            <h1 class="text-white font-bold text-base">
-                                Beauty Salon
+                            <h1 class="text-white font-bold text-base truncate">
+                                {{ shop.shop_name || 'محلك' }}
                             </h1>
 
                             <p class="text-indigo-100 text-xs mt-0.5 truncate">
-                                نظام إدارة الصالون
+                                {{ shop.description || 'نظام إدارة المحل' }}
                             </p>
 
                         </div>
@@ -305,14 +312,11 @@ function getInitials(name) {
                                    transition-all duration-200"
                         >
 
-                            <div
-                                class="w-10 h-10 rounded-xl
-                                       bg-gradient-to-br from-indigo-500 to-violet-600
-                                       text-white flex items-center justify-center
-                                       text-sm font-bold shadow-sm shrink-0"
-                            >
-                                {{ getInitials(user.name) }}
-                            </div>
+                            <UserAvatar
+                                :user="user"
+                                :size="40"
+                                class="shadow-sm"
+                            />
 
                             <div class="flex-1 min-w-0 text-right">
 
@@ -404,27 +408,36 @@ function getInitials(name) {
             >
 
                 <!-- Brand -->
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 min-w-0">
 
                     <div
                         class="w-10 h-10 rounded-xl
                                bg-gradient-to-br from-indigo-600 to-violet-600
-                               flex items-center justify-center shadow-md shadow-indigo-500/20"
+                               flex items-center justify-center shadow-md shadow-indigo-500/20
+                               shrink-0 overflow-hidden"
                     >
+                        <img
+                            v-if="shop.logo_url"
+                            :src="shop.logo_url"
+                            class="w-full h-full object-cover"
+                            alt="شعار المحل"
+                        />
+
                         <Sparkles
+                            v-else
                             class="w-5 h-5 text-white"
                             stroke-width="1.8"
                         />
                     </div>
 
-                    <div>
+                    <div class="min-w-0">
 
-                        <p class="text-sm font-bold text-slate-800">
-                            Beauty Salon
+                        <p class="text-sm font-bold text-slate-800 truncate">
+                            {{ shop.shop_name || 'محلك' }}
                         </p>
 
-                        <p class="text-[10px] text-slate-400">
-                            نظام إدارة الصالون
+                        <p class="text-[10px] text-slate-400 truncate">
+                            {{ shop.description || 'نظام إدارة المحل' }}
                         </p>
 
                     </div>
@@ -433,19 +446,9 @@ function getInitials(name) {
 
 
                 <!-- Mobile buttons -->
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 shrink-0">
 
-                    <button
-                        type="button"
-                        class="w-10 h-10 rounded-xl bg-slate-50
-                               text-slate-500 flex items-center justify-center
-                               hover:bg-slate-100 transition"
-                    >
-                        <Bell
-                            class="w-[18px] h-[18px]"
-                            stroke-width="1.8"
-                        />
-                    </button>
+                    <NotificationBell />
 
                     <button
                         type="button"
@@ -627,27 +630,7 @@ function getInitials(name) {
                     >
 
                         <!-- Notification -->
-                        <button
-                            type="button"
-                            class="relative w-10 h-10 rounded-xl
-                                   bg-slate-50 border border-slate-100
-                                   text-slate-500
-                                   hover:bg-indigo-50 hover:text-indigo-600
-                                   transition"
-                        >
-
-                            <Bell
-                                class="w-[18px] h-[18px] mx-auto"
-                                stroke-width="1.8"
-                            />
-
-                            <span
-                                class="absolute top-2 right-2
-                                       w-1.5 h-1.5 rounded-full
-                                       bg-indigo-500 ring-2 ring-white"
-                            ></span>
-
-                        </button>
+                        <NotificationBell />
 
 
                         <!-- User mini -->
@@ -665,14 +648,10 @@ function getInitials(name) {
                                            hover:bg-slate-50 transition"
                                 >
 
-                                    <div
-                                        class="w-9 h-9 rounded-xl
-                                               bg-gradient-to-br from-indigo-500 to-violet-600
-                                               text-white flex items-center justify-center
-                                               text-xs font-bold"
-                                    >
-                                        {{ getInitials(user.name) }}
-                                    </div>
+                                    <UserAvatar
+                                        :user="user"
+                                        :size="36"
+                                    />
 
                                     <div class="hidden xl:block text-right">
 
@@ -685,7 +664,7 @@ function getInitials(name) {
                                         <p
                                             class="text-[10px] text-slate-400 mt-0.5"
                                         >
-                                            حساب المدير
+                                            {{ isOwner ? 'حساب المدير' : 'حساب موظف' }}
                                         </p>
 
                                     </div>

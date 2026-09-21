@@ -12,23 +12,31 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class RegisteredUserController extends Controller
 {
+    /** مدة التجربة المجانية لكل محل جديد (بالأيام) */
+    private const TRIAL_DAYS = 14;
+
+    /** أسماء ممنوعة كـ subdomain */
+    private const RESERVED_SLUGS = ['www', 'admin', 'api', 'app', 'mail', 'central', 'static', 'assets'];
+
     /**
      * Display the registration view.
      */
-   public function create()
-{
-    $num1 = rand(1, 9);
-    $num2 = rand(1, 9);
-    session(['captcha_answer' => $num1 + $num2]);
+    public function create()
+    {
+        $num1 = rand(1, 9);
+        $num2 = rand(1, 9);
+        session(['captcha_answer' => $num1 + $num2]);
 
-    return Inertia::render('Auth/Register', [
-        'captchaQuestion' => "What is {$num1} + {$num2}?"
-    ]);
-}
+        return Inertia::render('Auth/Register', [
+            'captchaQuestion' => "كم ناتج {$num1} + {$num2} ؟",
+            'trialDays' => self::TRIAL_DAYS,
+        ]);
+    }
 
     /**
      * Handle an incoming registration request.
@@ -42,41 +50,99 @@ class RegisteredUserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'captcha' => 'required|numeric',
+        ], [
+            'captcha.required' => 'اكتب جواب السؤال الأمني.',
+            'captcha.numeric' => 'جواب السؤال الأمني لازم يكون رقم.',
         ]);
 
-        $baseSlug = Str::slug($request->shop_name);
-        $slug = $baseSlug;
-        $counter = 1;
+        // التحقق من الكابتشا: الجواب بينحذف من الجلسة بعد أول محاولة (سؤال جديد لكل محاولة)
+        $expected = $request->session()->pull('captcha_answer');
 
-        while (Tenant::find($slug)) {
-            $slug = $baseSlug.'-'.$counter;
-            $counter++;
+        if ($expected === null || (int) $request->captcha !== (int) $expected) {
+            throw ValidationException::withMessages([
+                'captcha' => 'جواب السؤال الأمني غير صحيح، جرّب السؤال الجديد.',
+            ]);
         }
 
-        $tenant = Tenant::create([
-            'id' => $slug,
-            'shop_name' => $request->shop_name,
-        ]);
+        $slug = $this->uniqueSlug($request->shop_name);
+        $tenant = null;
 
-        $centralDomain = parse_url(config('app.url'), PHP_URL_HOST);
+        try {
+            $tenant = Tenant::create([
+                'id' => $slug,
+                'shop_name' => $request->shop_name,
+                'is_active' => true,
+                // فترة تجربة تلقائية، وبعدها المحل بيتعطل لحد ما تمدد اشتراكو من لوحة الأدمن
+                'subscription_ends_at' => now()->addDays(self::TRIAL_DAYS)->toDateTimeString(),
+            ]);
 
-        $tenant->domains()->create([
-            'domain' => $slug.'.'.$centralDomain,
-        ]);
+            $centralDomain = parse_url(config('app.url'), PHP_URL_HOST);
 
-        tenancy()->initialize($tenant);
+            $tenant->domains()->create([
+                'domain' => $slug.'.'.$centralDomain,
+            ]);
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => 'owner',
-        ]);
+            tenancy()->initialize($tenant);
+
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'role' => 'owner',
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            tenancy()->end();
+
+            // ما منخلي محل نص مبني (سجل بدون قاعدة بيانات أو بدون مالك)
+            if ($tenant) {
+                try {
+                    $tenant->delete();
+                } catch (\Throwable $ignored) {
+                    report($ignored);
+                }
+            }
+
+            throw ValidationException::withMessages([
+                'shop_name' => 'تعذّر إنشاء المحل حالياً، حاول مرة أخرى بعد قليل.',
+            ]);
+        }
 
         event(new Registered($user));
 
         Auth::login($user);
 
-        return Inertia::location('http://'.$slug.'.'.$centralDomain.':8000'.RouteServiceProvider::HOME);
+        // نفس البروتوكول والمنفذ يلي جاي منهم الطلب (بالإنتاج https بدون منفذ)
+        $port = (int) $request->getPort();
+        $portPart = in_array($port, [80, 443], true) ? '' : ':'.$port;
+
+        return Inertia::location(
+            $request->getScheme().'://'.$slug.'.'.$centralDomain.$portPart.RouteServiceProvider::HOME
+        );
+    }
+
+    /**
+     * اسم فريد للمحل بالدومين: بيتعامل مع الأسماء الفاضية (مثلاً إيموجي بس)،
+     * الطويلة، والمحجوزة (www, admin...)، وبيضيف رقم لو الاسم مأخوذ.
+     */
+    private function uniqueSlug(string $shopName): string
+    {
+        $base = trim(Str::limit(Str::slug($shopName), 40, ''), '-');
+
+        if ($base === '' || in_array($base, self::RESERVED_SLUGS, true)) {
+            $base = 'shop';
+        }
+
+        $slug = $base;
+        $counter = 1;
+
+        while (Tenant::find($slug)) {
+            $slug = $base.'-'.$counter;
+            $counter++;
+        }
+
+        return $slug;
     }
 }
