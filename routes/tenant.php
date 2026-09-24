@@ -6,9 +6,8 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
-use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
-use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\PasswordResetCodeController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\ProfileAvatarController;
@@ -32,7 +31,7 @@ Route::middleware(array_merge($tenancyMiddleware, ['auth', 'owner']))
     ->resource('staff', \App\Http\Controllers\StaffController::class);
 Route::middleware(array_merge($tenancyMiddleware, ['auth', 'owner']))->get('/settings/shop', [\App\Http\Controllers\ShopSettingsController::class, 'edit'])->name('shop-settings.edit');
 Route::middleware(array_merge($tenancyMiddleware, ['auth', 'owner']))->post('/settings/shop', [\App\Http\Controllers\ShopSettingsController::class, 'update'])->name('shop-settings.update');
-    Route::middleware($tenancyMiddleware)->get('/book', [\App\Http\Controllers\BookingPageController::class, 'index'])->name('booking.index');
+Route::middleware($tenancyMiddleware)->get('/book', [\App\Http\Controllers\BookingPageController::class, 'index'])->name('booking.index');
 Route::middleware($tenancyMiddleware)->post('/book', [\App\Http\Controllers\BookingPageController::class, 'store'])->name('booking.store');
 Route::middleware($tenancyMiddleware)
     ->get('/booking/success/{booking}', [\App\Http\Controllers\BookingPageController::class, 'success'])
@@ -65,10 +64,15 @@ Route::middleware(array_merge($tenancyMiddleware, ['auth']))->delete('/profile/a
 
 Route::middleware(array_merge($tenancyMiddleware, ['guest']))->get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
 Route::middleware(array_merge($tenancyMiddleware, ['guest']))->post('login', [AuthenticatedSessionController::class, 'store']);
-Route::middleware(array_merge($tenancyMiddleware, ['guest']))->get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
-Route::middleware(array_merge($tenancyMiddleware, ['guest']))->post('forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
-Route::middleware(array_merge($tenancyMiddleware, ['guest']))->get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
-Route::middleware(array_merge($tenancyMiddleware, ['guest']))->post('reset-password', [NewPasswordController::class, 'store'])->name('password.store');
+
+// --- نسيت كلمة المرور (برمز تأكيد على الإيميل) ---
+Route::middleware(array_merge($tenancyMiddleware, ['guest']))->get('forgot-password', [PasswordResetCodeController::class, 'create'])->name('password.request');
+Route::middleware(array_merge($tenancyMiddleware, ['guest', 'throttle:5,1']))->post('forgot-password', [PasswordResetCodeController::class, 'store'])->name('password.email');
+Route::middleware(array_merge($tenancyMiddleware, ['guest']))->get('forgot-password/verify', [PasswordResetCodeController::class, 'verifyForm'])->name('password.verify');
+Route::middleware(array_merge($tenancyMiddleware, ['guest', 'throttle:10,1']))->post('forgot-password/verify', [PasswordResetCodeController::class, 'verify'])->name('password.verify.store');
+Route::middleware(array_merge($tenancyMiddleware, ['guest', 'throttle:3,1']))->post('forgot-password/resend', [PasswordResetCodeController::class, 'resend'])->name('password.resend');
+Route::middleware(array_merge($tenancyMiddleware, ['guest']))->get('reset-password', [PasswordResetCodeController::class, 'resetForm'])->name('password.reset');
+Route::middleware(array_merge($tenancyMiddleware, ['guest']))->post('reset-password', [PasswordResetCodeController::class, 'reset'])->name('password.store');
 
 // --- Authenticated Auth Routes ---
 Route::middleware(array_merge($tenancyMiddleware, ['auth']))->get('verify-email', EmailVerificationPromptController::class)->name('verification.notice');

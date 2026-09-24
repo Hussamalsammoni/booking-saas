@@ -70,12 +70,25 @@ class BookingPageController extends Controller
             'shop'     => [
                 'name'            => $t->shop_name,
                 'description'     => $t->description,
+                'phone'           => $t->phone,
                 'primary_color'   => $t->primary_color ?? '#ff0569',
                 'secondary_color' => $t->secondary_color ?? '#1E1E24',
                 'bg_color'        => $t->bg_color ?? '#F9F8F6',
                 'text_color'      => $t->text_color ?? '#2D2D2D',
                 'logo'            => $t->logo_path ? tenant_asset($t->logo_path) : null,
                 'cover'           => $t->cover_path ? tenant_asset($t->cover_path) : null,
+                'features'        => $t->features ?? [],
+                'gallery'         => collect($t->gallery_paths ?? [])
+                    ->map(fn ($path) => tenant_asset($path))
+                    ->values(),
+
+                'working_hours'   => $t->working_hours ?? [],
+                'map_address'     => $t->map_address,
+                'map_url'         => $t->map_url,
+                'map_lat'         => $t->map_lat,   // جديد: إحداثيات الدبوس
+                'map_lng'         => $t->map_lng,   // جديد
+                'social_links'    => $t->social_links ?? [],
+                'testimonials'    => $t->testimonials ?? [],
             ],
         ]);
     }

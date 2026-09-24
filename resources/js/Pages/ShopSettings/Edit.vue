@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
@@ -20,6 +20,20 @@ const form = useForm({
     text_color: props.shop.text_color || '#2D2D2D',
     logo: null,
     cover: null,
+    features: props.shop.features?.length ? [...props.shop.features] : [],
+    gallery_keep: (props.shop.gallery || []).map((g) => g.path),
+    gallery_new: [],
+
+    working_hours: props.shop.working_hours || [],
+    map_address: props.shop.map_address || '',
+    map_url: props.shop.map_url || '',
+    social_links: {
+        facebook: props.shop.social_links?.facebook || '',
+        instagram: props.shop.social_links?.instagram || '',
+        tiktok: props.shop.social_links?.tiktok || '',
+        snapchat: props.shop.social_links?.snapchat || '',
+    },
+    testimonials: props.shop.testimonials?.length ? [...props.shop.testimonials] : [],
 });
 
 const logoPreview = ref(props.shop.logo_url || null);
@@ -39,10 +53,72 @@ const onCoverChange = (e) => {
     coverPreview.value = URL.createObjectURL(file);
 };
 
+/* ---------------- المزايا ---------------- */
+const emojiChoices = ['⭐', '✅', '🚀', '💎', '🏆', '✨', '🕐', '📍', '💳', '🎁'];
+
+const addFeature = () => {
+    if (form.features.length >= 8) return;
+    form.features.push({ icon: '⭐', title: '' });
+};
+const removeFeature = (i) => form.features.splice(i, 1);
+
+/* ---------------- معرض الصور ---------------- */
+
+const existingGallery = ref([...(props.shop.gallery || [])]); // [{path, url}]
+
+// كل ما توصل بيانات جديدة من السيرفر (بعد الحفظ)، حدّث القائمة المحلية تلقائياً
+watch(
+    () => props.shop.gallery,
+    (newGallery) => {
+        existingGallery.value = [...(newGallery || [])];
+        form.gallery_keep = (newGallery || []).map((g) => g.path);
+    }
+);
+const newGalleryPreviews = ref([]); // [{file, url}]
+
+const isKept = (path) => form.gallery_keep.includes(path);
+const toggleKeep = (path) => {
+    if (isKept(path)) {
+        form.gallery_keep = form.gallery_keep.filter((p) => p !== path);
+    } else {
+        form.gallery_keep.push(path);
+    }
+};
+
+const onGalleryFilesChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    const remainingSlots = 12 - form.gallery_keep.length - form.gallery_new.length;
+    const toAdd = files.slice(0, Math.max(remainingSlots, 0));
+
+    toAdd.forEach((file) => {
+        form.gallery_new.push(file);
+        newGalleryPreviews.value.push({ url: URL.createObjectURL(file) });
+    });
+
+    e.target.value = '';
+};
+
+const removeNewGalleryImage = (i) => {
+    form.gallery_new.splice(i, 1);
+    newGalleryPreviews.value.splice(i, 1);
+};
+
+/* ---------------- تقييمات الزبائن ---------------- */
+const addTestimonial = () => {
+    if (form.testimonials.length >= 6) return;
+    form.testimonials.push({ name: '', text: '', rating: 5 });
+};
+const removeTestimonial = (i) => form.testimonials.splice(i, 1);
+
 const submit = () => {
     form.post(route('shop-settings.update'), {
         forceFormData: true,
         preserveScroll: true,
+        onSuccess: () => {
+            // بعد الحفظ، الصور الجديدة تصير "موجودة" فعلياً من ناحية الحالة المحلية
+            form.gallery_new = [];
+            newGalleryPreviews.value = [];
+        },
     });
 };
 
@@ -125,7 +201,7 @@ const colorFields = [
 
                             <div>
                                 <label for="description" class="mb-2 block text-sm font-semibold text-gray-700">
-                                    وصف قصير للمحل
+                                    وصف المحل (يظهر بقسم "من نحن" بصفحة الحجز)
                                 </label>
 
                                 <textarea
@@ -164,6 +240,247 @@ const colorFields = [
 
                         </div>
 
+                    </div>
+
+
+                    <!-- ============ Features ============ -->
+                    <div class="overflow-hidden rounded-3xl border border-gray-200/80 bg-white shadow-sm">
+
+                        <div class="flex items-center gap-4 border-b border-gray-100 px-6 py-6 sm:px-8">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-600 ring-1 ring-emerald-100">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900">مزايا محلك</h3>
+                                <p class="mt-1 text-sm text-gray-500">توضح لزبائنك ليش يختاروك (حتى 8 مزايا)</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3 px-6 py-7 sm:px-8">
+
+                            <div
+                                v-for="(feature, i) in form.features"
+                                :key="i"
+                                class="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50/60 p-3"
+                            >
+                                <select
+                                    v-model="feature.icon"
+                                    class="w-16 shrink-0 rounded-xl border-gray-200 bg-white text-center text-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                >
+                                    <option v-for="e in emojiChoices" :key="e" :value="e">{{ e }}</option>
+                                </select>
+
+                                <input
+                                    type="text"
+                                    v-model="feature.title"
+                                    maxlength="60"
+                                    placeholder="مثال: خبرة أكتر من 10 سنين"
+                                    class="grow rounded-xl border-gray-200 bg-white text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+
+                                <button
+                                    type="button"
+                                    @click="removeFeature(i)"
+                                    class="shrink-0 rounded-xl p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-500"
+                                >
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <button
+                                v-if="form.features.length < 8"
+                                type="button"
+                                @click="addFeature"
+                                class="w-full rounded-2xl border-2 border-dashed border-gray-200 py-3 text-sm font-semibold text-gray-500 transition hover:border-indigo-300 hover:text-indigo-600"
+                            >
+                                + إضافة ميزة
+                            </button>
+
+                            <InputError class="mt-1" :message="form.errors.features" />
+                        </div>
+
+                    </div>
+
+
+                    <!-- ============ ساعات العمل ============ -->
+                    <div class="overflow-hidden rounded-3xl border border-gray-200/80 bg-white shadow-sm">
+
+                        <div class="flex items-center gap-4 border-b border-gray-100 px-6 py-6 sm:px-8">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-50 to-amber-100 text-orange-600 ring-1 ring-orange-100">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900">ساعات العمل</h3>
+                                <p class="mt-1 text-sm text-gray-500">تظهر لزبائنك بصفحة الحجز مع حالة "مفتوح الآن"</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 px-6 py-7 sm:px-8">
+                            <div
+                                v-for="(dayItem, i) in form.working_hours"
+                                :key="i"
+                                class="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50/60 p-3"
+                            >
+                                <label class="flex w-28 shrink-0 items-center gap-2">
+                                    <input type="checkbox" v-model="dayItem.enabled" class="rounded text-indigo-600 focus:ring-indigo-500" />
+                                    <span class="text-sm font-bold text-gray-700">{{ dayItem.day }}</span>
+                                </label>
+
+                                <template v-if="dayItem.enabled">
+                                    <input type="time" v-model="dayItem.start" class="rounded-xl border-gray-200 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                                    <span class="text-xs text-gray-400">إلى</span>
+                                    <input type="time" v-model="dayItem.end" class="rounded-xl border-gray-200 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                                </template>
+                                <span v-else class="text-xs font-semibold text-gray-400">مغلق</span>
+                            </div>
+
+                            <InputError class="mt-1" :message="form.errors.working_hours" />
+                        </div>
+                    </div>
+
+
+                    <!-- ============ الموقع ============ -->
+                    <div class="overflow-hidden rounded-3xl border border-gray-200/80 bg-white shadow-sm">
+
+                        <div class="flex items-center gap-4 border-b border-gray-100 px-6 py-6 sm:px-8">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-50 to-rose-100 text-red-600 ring-1 ring-red-100">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </div>
+
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900">موقع المحل</h3>
+                                <p class="mt-1 text-sm text-gray-500">يظهر لزبائنك خريطة وعنوان بصفحة الحجز</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 px-6 py-7 sm:px-8">
+                            <div>
+                                <label class="mb-2 block text-sm font-semibold text-gray-700">العنوان</label>
+                                <input
+                                    type="text"
+                                    v-model="form.map_address"
+                                    placeholder="مثال: دمشق - المزة - شارع الجلاء"
+                                    class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+                                <InputError class="mt-2" :message="form.errors.map_address" />
+                            </div>
+                            <div>
+                                <label class="mb-2 block text-sm font-semibold text-gray-700">رابط خرائط جوجل</label>
+                                <input
+                                    type="url"
+                                    v-model="form.map_url"
+                                    dir="ltr"
+                                    placeholder="https://maps.app.goo.gl/..."
+                                    class="block w-full rounded-xl border-gray-200 text-left text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+                                <p class="mt-2 text-xs text-gray-400">افتح موقع محلك بگوگل مابس، دوس "مشاركة"، وانسخ الرابط هون.</p>
+                                <InputError class="mt-2" :message="form.errors.map_url" />
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- ============ سوشال ميديا ============ -->
+                    <div class="overflow-hidden rounded-3xl border border-gray-200/80 bg-white shadow-sm">
+
+                        <div class="flex items-center gap-4 border-b border-gray-100 px-6 py-6 sm:px-8">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-50 to-fuchsia-100 text-purple-600 ring-1 ring-purple-100">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8.684 13.342a4 4 0 100-2.684m0 2.684a4 4 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a4 4 0 105.367-1.684 4 4 0 00-5.367 1.684zm0 9.632a4 4 0 105.367 1.684 4 4 0 00-5.367-1.684z" />
+                                </svg>
+                            </div>
+
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900">حسابات التواصل الاجتماعي</h3>
+                                <p class="mt-1 text-sm text-gray-500">اترك أي حقل فاضي إذا ما عندك حساب فيه</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-4 px-6 py-7 sm:grid-cols-2 sm:px-8">
+                            <div v-for="key in ['facebook', 'instagram', 'tiktok', 'snapchat']" :key="key">
+                                <label class="mb-2 block text-sm font-semibold capitalize text-gray-700">{{ key }}</label>
+                                <input
+                                    type="url"
+                                    v-model="form.social_links[key]"
+                                    dir="ltr"
+                                    placeholder="https://..."
+                                    class="block w-full rounded-xl border-gray-200 text-left text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+                                <InputError class="mt-2" :message="form.errors[`social_links.${key}`]" />
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- ============ تقييمات الزبائن ============ -->
+                    <div class="overflow-hidden rounded-3xl border border-gray-200/80 bg-white shadow-sm">
+
+                        <div class="flex items-center gap-4 border-b border-gray-100 px-6 py-6 sm:px-8">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-50 to-amber-100 text-yellow-600 ring-1 ring-yellow-100">
+                                <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.958a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.368 2.447a1 1 0 00-.363 1.118l1.287 3.957c.3.922-.755 1.688-1.538 1.118l-3.367-2.446a1 1 0 00-1.176 0l-3.367 2.446c-.783.57-1.838-.196-1.538-1.118l1.287-3.957a1 1 0 00-.364-1.118L2.113 9.385c-.783-.57-.38-1.81.588-1.81h4.162a1 1 0 00.95-.69l1.286-3.958z" />
+                                </svg>
+                            </div>
+
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900">تقييمات الزبائن</h3>
+                                <p class="mt-1 text-sm text-gray-500">ضيف آراء زبائنك يدوياً لتظهر بصفحة الحجز (حتى 6)</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3 px-6 py-7 sm:px-8">
+                            <div v-for="(t, i) in form.testimonials" :key="i" class="rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
+                                <div class="mb-2 flex items-center gap-3">
+                                    <input
+                                        type="text"
+                                        v-model="t.name"
+                                        placeholder="اسم الزبون"
+                                        class="grow rounded-xl border-gray-200 bg-white text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    />
+                                    <select v-model.number="t.rating" class="rounded-xl border-gray-200 bg-white text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        <option v-for="n in 5" :key="n" :value="n">{{ n }} ⭐</option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        @click="removeTestimonial(i)"
+                                        class="shrink-0 rounded-xl p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-500"
+                                    >
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <textarea
+                                    v-model="t.text"
+                                    rows="2"
+                                    maxlength="300"
+                                    placeholder="نص التقييم..."
+                                    class="w-full rounded-xl border-gray-200 bg-white text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                ></textarea>
+                            </div>
+
+                            <button
+                                v-if="form.testimonials.length < 6"
+                                type="button"
+                                @click="addTestimonial"
+                                class="w-full rounded-2xl border-2 border-dashed border-gray-200 py-3 text-sm font-semibold text-gray-500 transition hover:border-indigo-300 hover:text-indigo-600"
+                            >
+                                + إضافة تقييم
+                            </button>
+
+                            <InputError class="mt-1" :message="form.errors.testimonials" />
+                        </div>
                     </div>
 
 
@@ -319,6 +636,81 @@ const colorFields = [
                                 <InputError class="mt-2" :message="form.errors.cover" />
                             </div>
 
+                        </div>
+
+                    </div>
+
+
+                    <!-- ============ Gallery ============ -->
+                    <div class="overflow-hidden rounded-3xl border border-gray-200/80 bg-white shadow-sm">
+
+                        <div class="flex items-center gap-4 border-b border-gray-100 px-6 py-6 sm:px-8">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-50 to-blue-100 text-sky-600 ring-1 ring-sky-100">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 16l5-5 4 4 5-6 4 5M4 6h16v12H4z" />
+                                </svg>
+                            </div>
+
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900">معرض الصور</h3>
+                                <p class="mt-1 text-sm text-gray-500">صور من محلك وشغلك، تظهر بصفحة الحجز (حتى 12 صورة)</p>
+                            </div>
+                        </div>
+
+                        <div class="px-6 py-7 sm:px-8">
+
+                            <div class="grid grid-cols-3 gap-3 sm:grid-cols-4">
+
+                                <!-- الصور الموجودة -->
+                                <div
+                                    v-for="img in existingGallery"
+                                    :key="img.path"
+                                    class="group relative aspect-square overflow-hidden rounded-2xl border border-gray-100"
+                                    :class="{ 'opacity-40 grayscale': !isKept(img.path) }"
+                                >
+                                    <img :src="img.url" class="h-full w-full object-cover" />
+                                    <button
+                                        type="button"
+                                        @click="toggleKeep(img.path)"
+                                        class="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100"
+                                    >
+                                        <span class="rounded-lg bg-white/90 px-2.5 py-1 text-[11px] font-bold text-gray-800">
+                                            {{ isKept(img.path) ? 'حذف' : 'تراجع' }}
+                                        </span>
+                                    </button>
+                                </div>
+
+                                <!-- الصور الجديدة -->
+                                <div
+                                    v-for="(preview, i) in newGalleryPreviews"
+                                    :key="'new-' + i"
+                                    class="group relative aspect-square overflow-hidden rounded-2xl border-2 border-dashed border-indigo-200"
+                                >
+                                    <img :src="preview.url" class="h-full w-full object-cover" />
+                                    <button
+                                        type="button"
+                                        @click="removeNewGalleryImage(i)"
+                                        class="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100"
+                                    >
+                                        <span class="rounded-lg bg-white/90 px-2.5 py-1 text-[11px] font-bold text-gray-800">إزالة</span>
+                                    </button>
+                                </div>
+
+                                <!-- زر الإضافة -->
+                                <label
+                                    v-if="form.gallery_keep.length + form.gallery_new.length < 12"
+                                    class="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 transition hover:border-indigo-300 hover:text-indigo-500"
+                                >
+                                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    <span class="text-[11px] font-semibold">إضافة صور</span>
+                                    <input type="file" accept="image/*" multiple @change="onGalleryFilesChange" class="hidden" />
+                                </label>
+
+                            </div>
+
+                            <InputError class="mt-3" :message="form.errors.gallery_new" />
                         </div>
 
                     </div>
